@@ -11,6 +11,7 @@ export const canvas3d = {
   loadsGroup: null,
   supportsGroup: null,
   gridHelper: null,
+  ghostGridsGroup: null,
   groundPlane: null,
   hoverMesh: null,
   axesRenderer: null,
@@ -61,6 +62,8 @@ export function initScene() {
   canvas3d.scene.add(canvas3d.membersGroup);
   canvas3d.scene.add(canvas3d.loadsGroup);
   canvas3d.scene.add(canvas3d.supportsGroup);
+  canvas3d.ghostGridsGroup = new THREE.Group();
+  canvas3d.scene.add(canvas3d.ghostGridsGroup);
 
   // Ground plane (initially invisible, size 0 until set)
   const planeGeo = new THREE.PlaneGeometry(0, 0);
