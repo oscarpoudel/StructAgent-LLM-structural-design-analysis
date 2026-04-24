@@ -128,6 +128,62 @@ class ColumnInputs(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# 3D Structure inputs
+# ---------------------------------------------------------------------------
+
+class Support3D(BaseModel):
+    ux: bool = False
+    uy: bool = False
+    uz: bool = False
+    rx: bool = False
+    ry: bool = False
+    rz: bool = False
+
+
+class Node3D(BaseModel):
+    id: int
+    x: float
+    y: float
+    z: float
+    support: Support3D | None = None
+
+
+class Member3D(BaseModel):
+    id: int
+    start_node: int
+    end_node: int
+    area_m2: float = 0.01
+    iy_m4: float = 1e-4
+    iz_m4: float = 1e-4
+    j_m4: float = 1e-4
+    elastic_modulus_gpa: float = 200.0
+    shear_modulus_gpa: float = 77.0
+
+
+class Load3D(BaseModel):
+    node_id: int
+    fx_kn: float = 0.0
+    fy_kn: float = 0.0
+    fz_kn: float = 0.0
+    mx_kn_m: float = 0.0
+    my_kn_m: float = 0.0
+    mz_kn_m: float = 0.0
+
+
+class MemberLoad3D(BaseModel):
+    member_id: int
+    wy_kn_per_m: float = 0.0
+    wz_kn_per_m: float = 0.0
+
+
+class Structure3DInputs(BaseModel):
+    nodes: list[Node3D]
+    members: list[Member3D]
+    nodal_loads: list[Load3D] = Field(default_factory=list)
+    member_loads: list[MemberLoad3D] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Agent trace / responses
 # ---------------------------------------------------------------------------
 

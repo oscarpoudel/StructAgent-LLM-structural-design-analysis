@@ -24,11 +24,18 @@ from app.models import (
     TrussLoad,
     TrussMember,
     TrussNode,
+    Structure3DInputs,
+    Node3D,
+    Member3D,
+    Load3D,
+    MemberLoad3D,
+    Support3D,
 )
 from app.tools.beam import analyze_beam
 from app.tools.column import analyze_column
 from app.tools.frame import analyze_frame
 from app.tools.opensees_beam import analyze_beam_opensees
+from app.tools.opensees_3d import analyze_3d_structure_opensees
 from app.tools.report import format_engineering_report
 from app.tools.truss import analyze_truss
 
@@ -64,6 +71,7 @@ _TRUSS_KEYWORDS = ["truss", "truss analysis", "truss structure", "bar element", 
 _FRAME_KEYWORDS = ["frame", "portal frame", "portal", "multi-story", "rigid frame", "moment frame"]
 _COLUMN_KEYWORDS = ["column", "buckling", "euler", "slenderness", "compression member", "axial capacity"]
 _BEAM_KEYWORDS = ["beam", "span", "udl", "uniform load", "point load", "deflection", "moment", "shear"]
+_3D_KEYWORDS = ["3d", "three-dimensional", "space frame", "space truss"]
 
 _CANTILEVER_KEYWORDS = ["cantilever", "cantilevered", "fixed-free", "fixed free"]
 _FIXED_FIXED_KEYWORDS = ["fixed-fixed", "fixed fixed", "both ends fixed", "encastre"]
@@ -73,6 +81,8 @@ _PROPPED_KEYWORDS = ["propped cantilever", "propped", "fixed-pinned", "fixed pin
 def detect_analysis_type(text: str) -> str:
     """Detect the type of structural analysis requested."""
     lower = text.lower()
+    if any(kw in lower for kw in _3D_KEYWORDS):
+        return "3d_frame"
     if any(kw in lower for kw in _TRUSS_KEYWORDS):
         return "truss"
     if any(kw in lower for kw in _FRAME_KEYWORDS):
@@ -105,7 +115,8 @@ class StructuralAgentSystem:
                     "You are a structural analysis expert assistant. Reply conversationally and briefly. "
                     "When greeted, introduce yourself as a structural analysis expert. Mention that you can help "
                     "with beam analysis (simply supported, cantilever, fixed-fixed, propped cantilever), "
-                    "2D truss analysis, 2D frame analysis, column buckling checks, and AISC section lookups. "
+                    "2D truss analysis, 2D frame analysis, column buckling checks, AISC section lookups, "
+                    "and 3D space frames. "
                     "You support point loads, UDL, and combined loading. Do not claim licensed approval."
                 ),
                 fallback={
@@ -117,6 +128,7 @@ class StructuralAgentSystem:
                         "- 2D frame analysis (portal frames, multi-story frames)\n"
                         "- Column buckling checks (Euler + AISC Chapter E)\n"
                         "- AISC steel section property lookups\n"
+                        "- 3D Structural Analysis\n"
                         "- SFD, BMD, and deflection diagrams\n"
                         "All results include engineering reports with assumptions and warnings."
                     )
@@ -246,7 +258,9 @@ class StructuralAgentSystem:
         plan = self._planning_agent(prompt, intent)
         traces.append(AgentTrace(agent="Analysis Planning Agent", summary=plan["summary"], data=plan))
 
-        if analysis_type == "truss":
+        if analysis_type == "3d_frame":
+            return self._run_3d_analysis(prompt, traces, assumptions, warnings)
+        elif analysis_type == "truss":
             return self._run_truss_analysis(prompt, traces, assumptions, warnings)
         elif analysis_type == "frame":
             return self._run_frame_analysis(prompt, traces, assumptions, warnings)
@@ -254,6 +268,41 @@ class StructuralAgentSystem:
             return self._run_column_analysis(prompt, traces, assumptions, warnings)
         else:
             return self._run_beam_analysis(prompt, plan, traces, assumptions, warnings)
+
+    # ------------------------------------------------------------------
+    # 3D Frame analysis pipeline
+    # ------------------------------------------------------------------
+
+    def _run_3d_analysis(
+        self, prompt: str, traces: list, assumptions: list, warnings: list
+    ) -> AgentResult:
+        structure_inputs = self._extract_3d_inputs(prompt)
+        assumptions.append("Rigid connections assumed for 3D frame elements.")
+        assumptions.append("Linear elastic material behavior in 3D space.")
+
+        traces.append(AgentTrace(
+            agent="Solver Tool Agent",
+            summary=f"Running 3D frame analysis with {len(structure_inputs.nodes)} nodes and {len(structure_inputs.members)} members.",
+            data=structure_inputs.model_dump(),
+        ))
+
+        results = analyze_3d_structure_opensees(structure_inputs)
+
+        # Critic
+        frame_warnings = []
+        if not results.get("is_finite"):
+            frame_warnings.append("One or more results are not finite. Check 3D model stability (e.g., torsional releases or constraints).")
+        warnings.extend(frame_warnings)
+        traces.append(AgentTrace(
+            agent="Results Critic Agent",
+            summary="Checked 3D frame result sanity.",
+            data={"warnings": frame_warnings},
+        ))
+
+        report = format_engineering_report(prompt, assumptions, warnings, results, analysis_type="3d_frame")
+        traces.append(AgentTrace(agent="Report Agent", summary="Generated 3D analysis report.", data={}))
+
+        return AgentResult("3d_frame", assumptions, warnings, traces, results, report)
 
     # ------------------------------------------------------------------
     # Beam analysis pipeline
@@ -448,6 +497,7 @@ class StructuralAgentSystem:
             "beam": "openseespy_beam",
             "truss": "openseespy_truss",
             "frame": "openseespy_frame",
+            "3d_frame": "openseespy_3d_frame",
             "column": "column_euler_aisc",
         }
 
@@ -458,7 +508,7 @@ class StructuralAgentSystem:
 
         task = (
             "Choose a solver and required structured inputs. "
-            f"Available solvers: beam, truss, frame, column. "
+            f"Available solvers: beam, truss, frame, 3d_frame, column. "
             f"Intent JSON: {json.dumps(intent)}\nUser request: {prompt}"
         )
         try:
@@ -498,6 +548,34 @@ class StructuralAgentSystem:
         finally:
             if future.done():
                 executor.shutdown(wait=False, cancel_futures=True)
+
+    # ------------------------------------------------------------------
+    # Input extraction: 3D Frame
+    # ------------------------------------------------------------------
+
+    def _extract_3d_inputs(self, prompt: str) -> Structure3DInputs:
+        """Extract 3D structure inputs or use a default simple 3D frame."""
+        json_match = re.search(r"\{.*\}", prompt, flags=re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                return Structure3DInputs.model_validate(data)
+            except (json.JSONDecodeError, ValidationError):
+                pass
+        
+        # Default simple 3D cantilever column if couldn't parse
+        nodes = [
+            Node3D(id=1, x=0.0, y=0.0, z=0.0, support=Support3D(ux=True, uy=True, uz=True, rx=True, ry=True, rz=True)),
+            Node3D(id=2, x=0.0, y=5.0, z=0.0, support=None)
+        ]
+        members = [
+            Member3D(id=1, start_node=1, end_node=2)
+        ]
+        nodal_loads = [
+            Load3D(node_id=2, fx_kn=10.0, fy_kn=-50.0, fz_kn=5.0)
+        ]
+        
+        return Structure3DInputs(nodes=nodes, members=members, nodal_loads=nodal_loads)
 
     # ------------------------------------------------------------------
     # Input extraction: Beam
