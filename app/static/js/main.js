@@ -1,5 +1,5 @@
 import { initAnalysis } from './analysis.js';
-import { draw, initCanvas, resizeCanvas } from './canvas.js';
+import { draw, initCanvas, resizeCanvas } from './canvas3d/index.js';
 import { initChat } from './chat.js';
 import { initHistory } from './history.js';
 import { initModals, showLoadModal, showMemberLoadModal, showSupportModal } from './modals.js';

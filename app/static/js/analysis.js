@@ -1,6 +1,7 @@
 import { analyzeStructure } from './api.js';
 import { byId } from './dom.js';
-import { draw, fitModelToCanvas, showProp } from './canvas.js';
+import { draw, fitModelToCanvas } from './canvas3d/index.js';
+import { showProp } from './canvas3d/render.js';
 import { renderResults } from './results.js';
 import { resetModel, S } from './state.js';
 
