@@ -5,6 +5,33 @@ import math
 from app.models import BeamInputs, DiagramData
 
 
+def _validate_beam_inputs(inputs: BeamInputs) -> list[str]:
+    """Validate beam inputs and return list of warnings."""
+    warnings = []
+    if inputs.span_m <= 0:
+        warnings.append("Span must be positive.")
+    if inputs.span_m > 1000:
+        warnings.append("Span exceeds 1000 m. Please verify the input value.")
+    if inputs.udl_kn_per_m < 0:
+        warnings.append("UDL should be entered as a positive magnitude (gravity direction assumed).")
+    if inputs.udl_kn_per_m > 10000:
+        warnings.append("UDL exceeds 10,000 kN/m. Please verify the input value.")
+    if inputs.elastic_modulus_gpa <= 0:
+        warnings.append("Elastic modulus must be positive.")
+    if inputs.inertia_m4 is not None and inputs.inertia_m4 <= 0:
+        warnings.append("Moment of inertia must be positive.")
+    if inputs.section_modulus_m3 is not None and inputs.section_modulus_m3 <= 0:
+        warnings.append("Section modulus must be positive.")
+    if inputs.deflection_limit_ratio <= 0:
+        warnings.append("Deflection limit ratio must be positive.")
+    for i, pl in enumerate(inputs.point_loads):
+        if pl.magnitude_kn < 0:
+            warnings.append(f"Point load {i+1} should be entered as a positive magnitude.")
+        if pl.position_m < 0 or pl.position_m > inputs.span_m:
+            warnings.append(f"Point load {i+1} position {pl.position_m} m is outside span [0, {inputs.span_m}] m.")
+    return warnings
+
+
 def analyze_beam(inputs: BeamInputs) -> dict:
     """Closed-form beam analysis supporting multiple load types and boundary conditions."""
     span = inputs.span_m
@@ -35,6 +62,8 @@ def analyze_beam(inputs: BeamInputs) -> dict:
             pl_results = _cantilever_point(span, p, a)
         elif support == "fixed_fixed":
             pl_results = _fixed_fixed_point(span, p, a)
+        elif support == "propped_cantilever":
+            pl_results = _propped_cantilever_point(span, p, a)
         else:
             pl_results = _simply_supported_point(span, p, a)
 
@@ -50,14 +79,24 @@ def analyze_beam(inputs: BeamInputs) -> dict:
     )
 
     # ------------------------------------------------------------------
-    # Deflection (UDL component only for closed-form)
+    # Deflection (UDL + point load components via superposition)
     # ------------------------------------------------------------------
     deflection_m = None
     deflection_limit_m = span / inputs.deflection_limit_ratio
     deflection_ok = None
     if inertia and inertia > 0:
-        deflection_m = _deflection_closed_form(support, span, w, e_pa, inertia)
-        if deflection_m is not None:
+        total_deflection = 0.0
+        # UDL deflection at critical location
+        udl_defl = _deflection_closed_form(support, span, w, e_pa, inertia)
+        if udl_defl is not None:
+            total_deflection += abs(udl_defl)
+        # Point load deflections (at load point)
+        for pl in inputs.point_loads:
+            pl_defl = _point_load_deflection(support, span, pl.magnitude_kn, pl.position_m, e_pa, inertia)
+            if pl_defl is not None:
+                total_deflection += abs(pl_defl)
+        deflection_m = total_deflection
+        if deflection_m > 0:
             deflection_ok = deflection_m <= deflection_limit_m
 
     # ------------------------------------------------------------------
@@ -194,13 +233,28 @@ def _propped_cantilever_udl(span: float, w: float) -> dict:
     }
 
 
+def _propped_cantilever_point(span: float, p: float, a: float) -> dict:
+    """Point load at distance a from fixed end (left)."""
+    b = span - a
+    r_right = p * a * (3 * span**2 - 4 * a**2) / (4 * span**3)
+    r_left = p - r_right
+    m_max = p * a * b**2 / span**2  # Fixed-end moment at left
+    return {
+        "left_reaction_kn": r_left,
+        "right_reaction_kn": r_right,
+        "max_shear_kn": max(abs(r_left), abs(r_right)),
+        "max_moment_kn_m": abs(m_max),
+    }
+
+
 # ======================================================================
-# Deflection (closed-form, UDL only)
+# Deflection (closed-form, UDL + point load)
 # ======================================================================
 
 def _deflection_closed_form(
     support: str, span: float, w: float, e_pa: float, inertia: float
 ) -> float | None:
+    """Maximum deflection from UDL using closed-form equations."""
     load_n_per_m = w * 1_000.0
     if support == "simply_supported":
         return 5.0 * load_n_per_m * span**4 / (384.0 * e_pa * inertia)
@@ -210,6 +264,34 @@ def _deflection_closed_form(
         return load_n_per_m * span**4 / (384.0 * e_pa * inertia)
     elif support == "propped_cantilever":
         return load_n_per_m * span**4 / (185.0 * e_pa * inertia)
+    return None
+
+
+def _point_load_deflection(
+    support: str, span: float, p: float, a: float, e_pa: float, inertia: float
+) -> float | None:
+    """Deflection at load point from a concentrated load using closed-form equations."""
+    b = span - a
+    p_n = p * 1_000.0
+    ei = e_pa * inertia
+    if support == "simply_supported":
+        # Deflection at load point
+        if a <= b:
+            return p_n * a**2 * b**2 / (3.0 * ei * span)
+        return p_n * a * b**2 / (3.0 * ei * span)
+    elif support == "cantilever":
+        # Deflection at load point (a from fixed end)
+        return p_n * a**3 / (3.0 * ei)
+    elif support == "fixed_fixed":
+        # Deflection at load point
+        if a <= b:
+            return p_n * a**3 * b**2 / (3.0 * ei * span**3)
+        return p_n * a**2 * b**3 / (3.0 * ei * span**3)
+    elif support == "propped_cantilever":
+        # Approximate deflection at load point
+        if a <= span / 2:
+            return p_n * a**2 * (3 * span - 4 * a) / (6.0 * ei)
+        return p_n * (span - a)**2 * (3 * a - 2 * span) / (6.0 * ei)
     return None
 
 
@@ -247,13 +329,21 @@ def _compute_beam_diagrams(inputs: BeamInputs, e_pa: float) -> DiagramData | Non
         for pl in inputs.point_loads:
             b = span - pl.position_m
             m_fixed += pl.magnitude_kn * pl.position_m * b**2 / span**2
-    else:  # simply_supported or propped_cantilever
-        if support == "propped_cantilever":
-            r_right = 3 * w * span / 8.0
-            r_left = w * span - r_right
-        else:
-            r_left = w * span / 2.0
-            r_right = w * span / 2.0
+    elif support == "propped_cantilever":
+        r_right = 3 * w * span / 8.0
+        r_left = w * span - r_right
+        for pl in inputs.point_loads:
+            a = pl.position_m
+            r_right += pl.magnitude_kn * a * (3 * span**2 - 4 * a**2) / (4 * span**3)
+        r_left = w * span + sum(pl.magnitude_kn for pl in inputs.point_loads) - r_right
+        m_fixed = w * span**2 / 8.0
+        for pl in inputs.point_loads:
+            a = pl.position_m
+            b = span - a
+            m_fixed += pl.magnitude_kn * a * b**2 / span**2
+    else:  # simply_supported
+        r_left = w * span / 2.0
+        r_right = w * span / 2.0
         for pl in inputs.point_loads:
             b = span - pl.position_m
             r_left += pl.magnitude_kn * b / span
@@ -282,6 +372,11 @@ def _compute_beam_diagrams(inputs: BeamInputs, e_pa: float) -> DiagramData | Non
             for pl in inputs.point_loads:
                 if x >= pl.position_m:
                     m -= pl.magnitude_kn * (x - pl.position_m)
+        elif support == "propped_cantilever":
+            m = -m_fixed + r_left * x - w * x**2 / 2.0
+            for pl in inputs.point_loads:
+                if x >= pl.position_m:
+                    m -= pl.magnitude_kn * (x - pl.position_m)
         else:
             m = r_left * x - w * x**2 / 2.0
             for pl in inputs.point_loads:
@@ -301,6 +396,8 @@ def _compute_beam_diagrams(inputs: BeamInputs, e_pa: float) -> DiagramData | Non
                 defl = (load_n_per_m / (24.0 * ei)) * (x**4 - 4 * span * x**3 + 6 * span**2 * x**2)
             elif support == "fixed_fixed":
                 defl = (load_n_per_m * x**2 / (24.0 * ei)) * (span - x)**2
+            elif support == "propped_cantilever":
+                defl = (load_n_per_m * x / (48.0 * ei)) * (2 * x**3 - span * x**2 - span**3)
             else:
                 defl = (load_n_per_m * x / (24.0 * ei)) * (span**3 - 2 * span * x**2 + x**3)
             deflection_values.append(round(defl * 1_000.0, 4))
