@@ -1,0 +1,427 @@
+# API Documentation
+
+## Base URL
+
+All API endpoints are relative to the application base URL (default: \http://localhost:5000\).
+
+## Authentication
+
+No authentication is required for local development. For production, configure \APP_SECRET_KEY\ and implement appropriate authentication middleware.
+
+## Response Format
+
+All API responses return JSON with consistent structure:
+
+\\\json
+{
+  "status": "success",
+  "data": { ... }
+}
+\\\
+
+Error responses include:
+
+\\\json
+{
+  "status": "error",
+  "error": "Error message",
+  "details": "Additional context"
+}
+\\\
+
+---
+
+## Endpoints
+
+### GET /
+
+Returns the main application page.
+
+**Response**: \	ext/html\ - Serves \pp/static/index.html\
+
+---
+
+### GET /health
+
+Health check endpoint for monitoring and load balancers.
+
+**Response**:
+
+\\\json
+{
+  "status": "healthy",
+  "timestamp": "2026-05-02T12:00:00Z"
+}
+\\\
+
+---
+
+### POST /api/analyze
+
+Run structural analysis from a natural language prompt.
+
+**Request Body**:
+
+\\\json
+{
+  "prompt": "Analyze a simply supported beam with 10m span and 5 kN/m UDL"
+}
+\\\
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "analysis_type": "beam",
+  "assumptions": [
+    "Steel material (E=200 GPa)",
+    "Simply supported boundary conditions",
+    "Linear elastic analysis"
+  ],
+  "warnings": [
+    "Deflection exceeds L/360 limit"
+  ],
+  "traces": [
+    {
+      "agent": "intent",
+      "summary": "Detected beam analysis request",
+      "data": {
+        "structure_type": "beam",
+        "analysis_type": "static"
+      }
+    }
+  ],
+  "results": {
+    "reactions": {
+      "RA_kn": 25.0,
+      "RB_kn": 25.0
+    },
+    "max_shear_kn": 25.0,
+    "max_moment_kn_m": 62.5,
+    "max_deflection_mm": 6.51,
+    "max_bending_stress_mpa": 95.2
+  },
+  "report_markdown": "# Beam Analysis Report\n\n...",
+  "diagrams": {
+    "shear_kn": [0, 25, -25, 0],
+    "moment_kn_m": [0, 62.5, 0],
+    "deflection_mm": [0, 6.51, 0]
+  }
+}
+\\\
+
+---
+
+### POST /api/chat
+
+Chat with the structural analysis assistant. Supports conversation, canvas actions, and analysis requests.
+
+**Request Body**:
+
+\\\json
+{
+  "message": "What is Euler buckling?",
+  "analysis_type": "beam",
+  "model": {
+    "nodes": [...],
+    "members": [...],
+    "loads": [...]
+  }
+}
+\\\
+
+**Parameters**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| message | string | Yes | User message (min 1 character) |
+| nalysis_type | string | No | Analysis type: beam, truss, frame, column, 3d_frame |
+| model | object | No | Canvas structure model with nodes, members, loads |
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "response_type": "conversation",
+  "message": "Euler buckling is the sudden lateral deflection...",
+  "source": "conversation_agent",
+  "analysis": null,
+  "canvas_action": null
+}
+\\\
+
+**Response Types**:
+
+- \conversation\: General chat response
+- \nalysis\: Analysis results with diagrams
+- \canvas_action\: Canvas manipulation instruction
+
+---
+
+### POST /api/analyze/structure
+
+Analyze a drawn structure model from the 2D or 3D canvas.
+
+**Request Body**:
+
+\\\json
+{
+  "structure_type": "truss",
+  "nodes": [
+    {
+      "id": 1,
+      "x": 0.0,
+      "y": 0.0,
+      "support": "pin"
+    },
+    {
+      "id": 2,
+      "x": 5.0,
+      "y": 0.0,
+      "support": "roller"
+    }
+  ],
+  "members": [
+    {
+      "id": 1,
+      "start_node": 1,
+      "end_node": 2,
+      "area_m2": 0.001,
+      "elastic_modulus_gpa": 200.0
+    }
+  ],
+  "loads": [
+    {
+      "node_id": 2,
+      "fx_kn": 0.0,
+      "fy_kn": -10.0
+    }
+  ]
+}
+\\\
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "analysis_type": "truss",
+  "results": {
+    "node_displacements": [
+      {"node_id": 1, "ux_mm": 0.0, "uy_mm": 0.0},
+      {"node_id": 2, "ux_mm": 0.5, "uy_mm": -2.3}
+    ],
+    "member_forces": [
+      {"member_id": 1, "force_kn": 10.0, "status": "tension"}
+    ],
+    "support_reactions": [
+      {"node_id": 1, "rx_kn": -10.0, "ry_kn": 10.0},
+      {"node_id": 2, "ry_kn": 0.0}
+    ]
+  },
+  "diagrams": {
+    "positions": [...],
+    "deflection_mm": [...]
+  }
+}
+\\\
+
+---
+
+### GET /api/sections
+
+List or search steel sections from the AISC database.
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| q | string | No | Search query (filters by section name) |
+| min_weight | number | No | Minimum weight (lb/ft) |
+| max_weight | number | No | Maximum weight (lb/ft) |
+| min_depth | number | No | Minimum depth (in) |
+| max_depth | number | No | Maximum depth (in) |
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "sections": [
+    {
+      "name": "W10x33",
+      "depth_in": 9.73,
+      "flange_width_in": 7.96,
+      "area_in2": 9.71,
+      "ix_in4": 171.0,
+      "ix_in3": 35.0,
+      "weight_lb_per_ft": 33.0
+    }
+  ],
+  "count": 1
+}
+\\\
+
+---
+
+### GET /api/sections/<name>
+
+Get properties for a specific steel section.
+
+**Path Parameter**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| 
+ame | string | Section designation (e.g., "W10x33") |
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "section": {
+    "name": "W10x33",
+    "depth_in": 9.73,
+    "flange_width_in": 7.96,
+    "flange_thickness_in": 0.435,
+    "web_thickness_in": 0.29,
+    "area_in2": 9.71,
+    "ix_in4": 171.0,
+    "ix_in3": 35.0,
+    "iy_in4": 36.0,
+    "iy_in3": 9.04,
+    "weight_lb_per_ft": 33.0
+  }
+}
+\\\
+
+**Error Response** (section not found):
+
+\\\json
+{
+  "status": "error",
+  "error": "Section not found: W99x999"
+}
+\\\
+
+---
+
+### GET /api/history
+
+Get analysis history from SQLite database.
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| limit | integer | No | Number of results (default: 50) |
+| offset | integer | No | Offset for pagination (default: 0) |
+| nalysis_type | string | No | Filter by analysis type |
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "history": [
+    {
+      "id": 1,
+      "timestamp": "2026-05-02T12:00:00Z",
+      "analysis_type": "beam",
+      "prompt": "Analyze a simply supported beam...",
+      "results_summary": "Max moment: 62.5 kN-m, Max deflection: 6.51 mm"
+    }
+  ],
+  "count": 1,
+  "total": 1
+}
+\\\
+
+---
+
+### GET /api/history/<id>
+
+Get a specific analysis from history.
+
+**Path Parameter**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | integer | History record ID |
+
+**Response**:
+
+\\\json
+{
+  "status": "success",
+  "history": {
+    "id": 1,
+    "timestamp": "2026-05-02T12:00:00Z",
+    "analysis_type": "beam",
+    "prompt": "Analyze a simply supported beam...",
+    "results_json": "{...}",
+    "report_markdown": "# Beam Analysis Report\n\n..."
+  }
+}
+\\\
+
+---
+
+### POST /api/export/csv
+
+Export analysis results as CSV.
+
+**Request Body**:
+
+\\\json
+{
+  "history_id": 1,
+  "include_diagrams": true
+}
+\\\
+
+**Response**:
+
+Returns \	ext/csv\ content with results data.
+
+---
+
+### POST /api/export/report
+
+Export analysis results as a markdown report.
+
+**Request Body**:
+
+\\\json
+{
+  "history_id": 1,
+  "include_assumptions": true,
+  "include_warnings": true
+}
+\\\
+
+**Response**:
+
+Returns \	ext/markdown\ content with formatted engineering report.
+
+---
+
+## Error Codes
+
+| HTTP Status | Description |
+|-------------|-------------|
+| 400 | Bad Request - Invalid request body or parameters |
+| 404 | Not Found - Resource not found |
+| 500 | Internal Server Error - Analysis or server error |
+| 503 | Service Unavailable - LLM provider unavailable |
+
+## Rate Limiting
+
+No rate limiting is applied in development. For production, consider implementing rate limiting middleware.
+
+## CORS
+
+CORS is enabled for all origins in development. Configure \CORS_ORIGINS\ in production to restrict access.

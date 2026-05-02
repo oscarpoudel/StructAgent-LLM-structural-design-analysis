@@ -18,8 +18,25 @@ outputs/
 runs/
 reports/
 
-layout_pan.md
+# SQLite database (local data only)
+*.db
+*.db-journal
 
+# Logs
 *.log
+
+# OS files
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

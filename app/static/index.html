@@ -69,9 +69,15 @@
     <select id="analysisType" class="tool-select">
       <option value="frame">Frame</option>
       <option value="truss">Truss</option>
+      <option value="3d_frame">3D Frame</option>
     </select>
     <button id="runBtn" class="run-btn">&#9654; Analyze</button>
     <button id="clearBtn" class="clear-btn">Clear All</button>
+    <hr class="toolbar-sep"/>
+    <p class="toolbar-title">Save/Load</p>
+    <button id="saveBtn" class="save-btn">Save Model</button>
+    <button id="loadBtn" class="load-btn">Load Model</button>
+    <button id="manageModelsBtn" class="manage-btn">Manage Models</button>
     <hr class="toolbar-sep"/>
     <p class="toolbar-title">Display</p>
     <label class="chk"><input type="checkbox" id="showGrid" checked/> Grid</label>
@@ -111,7 +117,7 @@
       <div id="axesViewport" style="position:absolute; top:24px; right:24px; width:100px; height:100px; pointer-events:none; z-index:100;"></div>
   </section>
     <div class="canvas-status" id="canvasStatus">Ready &mdash; click to add nodes</div>
-    <div id="axesViewport" style="position:absolute; top:24px; right:24px; width:100px; height:100px; pointer-events:none; z-index:100;"></div>
+    <div id="canvasAxesViewport" style="position:absolute; top:24px; right:24px; width:100px; height:100px; pointer-events:none; z-index:100;"></div>
   </section>
 
   <!-- Results Panel -->
