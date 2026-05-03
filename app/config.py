@@ -14,9 +14,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    def __post_init__(self):
+    def model_post_init(self, __context: object) -> None:
         if not self.app_secret_key:
-            self.app_secret_key = secrets.token_hex(32)
+            object.__setattr__(self, "app_secret_key", secrets.token_hex(32))
 
 
 @lru_cache
