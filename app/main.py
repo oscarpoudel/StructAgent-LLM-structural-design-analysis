@@ -13,14 +13,19 @@ from pydantic import ValidationError
 from app.agents import StructuralAgentSystem, detect_analysis_type
 from app.config import get_settings
 from app.llm import DisabledLLMClient, OllamaClient, PydanticAIClient
+from app.logging_config import configure_logging, get_logger
 from app.models import (
     AnalyzeRequest, AnalyzeResponse, ChatRequest, ChatResponse,
     TrussInputs, TrussNode, TrussMember, TrussLoad,
     FrameInputs, FrameNode, FrameMember, FrameLoad, FrameMemberLoad,
     BeamInputs, PointLoad, ColumnInputs, DiagramData, AgentTrace, CanvasAction,
 )
+from app.tools.load_combinations import run_all_load_combinations, get_controlling_combination
 from app.tools.report import format_engineering_report
 from app.tools.sections import get_section, list_sections, search_sections, section_to_dict
+
+configure_logging()
+log = get_logger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR.parent / "analysis_history.db"
@@ -110,6 +115,8 @@ def get_agent_system() -> StructuralAgentSystem:
 
 
 def build_analysis_response(prompt: str) -> AnalyzeResponse:
+    t0 = time.perf_counter()
+    log.info("analysis_start", extra={"prompt_len": len(prompt)})
     result = get_agent_system().analyze(prompt)
 
     # Extract diagram data if available
@@ -128,7 +135,8 @@ def build_analysis_response(prompt: str) -> AnalyzeResponse:
 
     # Save to history
     _save_history(result.analysis_type, prompt, result.results, result.report_markdown)
-
+    elapsed = round(time.perf_counter() - t0, 3)
+    log.info("analysis_done", extra={"type": result.analysis_type, "elapsed_s": elapsed})
     return response
 
 
@@ -203,18 +211,111 @@ def index():
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok"})
+    """Enhanced health check — verifies DB and numpy/opensees availability."""
+    checks: dict[str, str] = {}
+
+    # DB check
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.execute("SELECT 1")
+        conn.close()
+        checks["db"] = "ok"
+    except Exception as exc:
+        checks["db"] = f"error: {exc}"
+
+    # Numpy check
+    try:
+        import numpy as np  # noqa: F401
+        checks["numpy"] = "ok"
+    except ImportError:
+        checks["numpy"] = "unavailable"
+
+    # OpenSeesPy check (optional)
+    try:
+        import openseespy.opensees  # noqa: F401
+        checks["opensees"] = "ok"
+    except Exception:
+        checks["opensees"] = "unavailable"
+
+    overall = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
+    status_code = 200 if overall == "ok" else 503
+    return jsonify({"status": overall, "checks": checks}), status_code
 
 
 # ---------------------------------------------------------------------------
 # Routes: Analysis
 # ---------------------------------------------------------------------------
 
+@app.post("/api/load-combinations")
+def load_combinations():
+    """Return ASCE 7 factored load combinations for given load components."""
+    data = request.get_json(silent=True) or {}
+    try:
+        dl = float(data.get("dl_kn", 0.0))
+        ll = float(data.get("ll_kn", 0.0))
+        wl = float(data.get("wl_kn", 0.0))
+        sl = float(data.get("sl_kn", 0.0))
+        el = float(data.get("el_kn", 0.0))
+        method = str(data.get("method", "lrfd")).lower()
+        if method not in ("lrfd", "asd"):
+            method = "lrfd"
+    except (TypeError, ValueError) as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+    all_combos = run_all_load_combinations(dl, ll, wl, sl, el, method=method)
+    controlling = get_controlling_combination(dl, ll, wl, sl, el, method=method)
+    return jsonify({
+        "status": "ok",
+        "method": method,
+        "combinations": all_combos,
+        "controlling": controlling,
+    })
+
+
+@app.post("/api/validate")
+def validate_model():
+    """Validate a structural model payload without running analysis."""
+    data = request.get_json(silent=True) or {}
+    analysis_type = data.get("analysis_type", "frame")
+    model = data.get("model", {})
+    errors: list[str] = []
+    warnings_out: list[str] = []
+
+    try:
+        if analysis_type == "truss":
+            parsed = TrussInputs.model_validate(model)
+            if len(parsed.nodes) < 2:
+                errors.append("Truss requires at least 2 nodes.")
+            if len(parsed.members) < 1:
+                errors.append("Truss requires at least 1 member.")
+            supported = [n for n in parsed.nodes if n.support != "free"]
+            if len(supported) < 2:
+                warnings_out.append("Truss needs at least 2 supported nodes to be statically determinate.")
+        else:
+            parsed = FrameInputs.model_validate(model)
+            if len(parsed.nodes) < 2:
+                errors.append("Frame requires at least 2 nodes.")
+            if len(parsed.members) < 1:
+                errors.append("Frame requires at least 1 member.")
+            supported = [n for n in parsed.nodes if n.support != "free"]
+            if not supported:
+                errors.append("Frame has no supports — it is a mechanism.")
+    except ValidationError as exc:
+        errors.extend([str(e["msg"]) for e in exc.errors()])
+
+    return jsonify({
+        "status": "error" if errors else "ok",
+        "analysis_type": analysis_type,
+        "errors": errors,
+        "warnings": warnings_out,
+    }), (400 if errors else 200)
+
 @app.post("/api/analyze")
 def analyze():
     try:
         analysis_request = AnalyzeRequest.model_validate(request.get_json(silent=True) or {})
     except ValidationError as error:
+        log.warning("analyze_validation_error", extra={"errors": error.error_count()})
         return jsonify({"status": "error", "errors": error.errors()}), 422
 
     response = build_analysis_response(analysis_request.prompt)
@@ -226,8 +327,10 @@ def chat():
     try:
         chat_request = ChatRequest.model_validate(request.get_json(silent=True) or {})
     except ValidationError as error:
+        log.warning("chat_validation_error", extra={"errors": error.error_count()})
         return jsonify({"status": "error", "errors": error.errors()}), 422
 
+    log.info("chat_request", extra={"msg_len": len(chat_request.message)})
     agent_system = get_agent_system()
     canvas_decision, canvas_source = agent_system.route_canvas_tool(chat_request.message)
     if canvas_decision.action != "none":
@@ -428,4 +531,5 @@ def export_report():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    log.info("struct_agent_starting", extra={"env": get_settings().app_env})
     app.run(debug=True)

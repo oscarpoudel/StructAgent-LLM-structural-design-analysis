@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('environment.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flask==3.1.2 httpx==0.28.1 numpy openseespy \
+            pydantic==2.13.2 "pydantic-ai==1.5.0" pydantic-settings==2.13.1 \
+            python-dotenv==1.2.2 pytest==8.3.4 "pytest-cov==6.0.0" waitress==3.0.2
+
+      - name: Lint with ruff
+        run: |
+          pip install ruff
+          ruff check app/ tests/ --output-format=github
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=60
+        env:
+          AGENT_LLM_PROVIDER: none
+          APP_SECRET_KEY: ci-test-secret-key
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t struct-agent:latest .
+
+      - name: Run smoke test in Docker
+        run: |
+          docker run -d -p 5000:5000 \
+            -e AGENT_LLM_PROVIDER=none \
+            -e APP_SECRET_KEY=smoke-test \
+            --name struct-agent-smoke struct-agent:latest
+          sleep 8
+          curl -f http://localhost:5000/health || (docker logs struct-agent-smoke && exit 1)
+          docker stop struct-agent-smoke

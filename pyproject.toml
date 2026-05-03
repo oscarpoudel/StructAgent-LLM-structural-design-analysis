@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "struct-agent"
+version = "0.1.0"
+description = "Multi-agent structural analysis assistant"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+    "flask==3.1.2",
+    "httpx==0.28.1",
+    "numpy",
+    "openseespy",
+    "pydantic==2.13.2",
+    "pydantic-ai==1.5.0",
+    "pydantic-settings==2.13.1",
+    "python-dotenv==1.2.2",
+    "waitress==3.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-cov==6.0.0",
+    "ruff>=0.4.4",
+    "pre-commit>=3.7",
+]
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-fail-under=60",
+]
+env = [
+    "AGENT_LLM_PROVIDER=none",
+    "APP_SECRET_KEY=test-secret-key",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff (linter + formatter)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in default args
+    "N806",   # variable in function should be lowercase (common in engineering code: E, I, A, K)
+    "N803",   # argument name should be lowercase
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # allow assert in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+no_strict_optional = true
+warn_return_any = false

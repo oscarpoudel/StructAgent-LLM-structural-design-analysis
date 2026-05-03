@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.llm import OllamaClient
+from app.logging_config import get_logger
 from app.models import (
     AgentTrace,
     BeamInputs,
@@ -38,6 +39,8 @@ from app.tools.opensees_beam import analyze_beam_opensees
 from app.tools.opensees_3d import analyze_3d_structure_opensees
 from app.tools.report import format_engineering_report
 from app.tools.truss import analyze_truss
+
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -239,6 +242,7 @@ class StructuralAgentSystem:
         return CanvasToolDecision()
 
     def analyze(self, prompt: str) -> AgentResult:
+        log.info("agent_analyze_start", extra={"prompt_len": len(prompt)})
         traces: list[AgentTrace] = []
         assumptions = [
             "Preliminary elastic analysis only.",
@@ -540,11 +544,16 @@ class StructuralAgentSystem:
         executor = ThreadPoolExecutor(max_workers=1)
         future = executor.submit(self.llm.generate, system=system, prompt=task)
         try:
-            return future.result(timeout=self.agent_timeout_s)
+            result = future.result(timeout=self.agent_timeout_s)
+            return result
         except TimeoutError as error:
+            log.warning("llm_timeout", extra={"timeout_s": self.agent_timeout_s})
             future.cancel()
             executor.shutdown(wait=False, cancel_futures=True)
             raise RuntimeError("Agent LLM call timed out") from error
+        except Exception as error:
+            log.warning("llm_error", extra={"error": str(error)})
+            raise
         finally:
             if future.done():
                 executor.shutdown(wait=False, cancel_futures=True)
