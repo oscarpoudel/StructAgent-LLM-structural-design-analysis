@@ -7,6 +7,7 @@ import { initExports } from './results.js';
 import { initSections } from './sections.js';
 import { initTabs } from './tabs.js';
 import { initTheme } from './theme.js';
+import { initShortcuts } from './shortcuts.js';
 
 initTheme();
 initModals(draw);
@@ -17,4 +18,5 @@ initExports();
 initChat();
 initSections();
 initHistory();
+initShortcuts();
 resizeCanvas();

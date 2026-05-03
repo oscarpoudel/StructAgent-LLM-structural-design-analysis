@@ -11,6 +11,9 @@ export function initAnalysis() {
   byId('saveBtn').addEventListener('click', () => saveNamedModel());
   byId('loadBtn').addEventListener('click', loadCurrentModel);
   byId('manageModelsBtn').addEventListener('click', showModelManager);
+  byId('exportJsonBtn').addEventListener('click', exportModelJson);
+  byId('importJsonBtn').addEventListener('click', () => byId('importJsonFile').click());
+  byId('importJsonFile').addEventListener('change', importModelJson);
   window.StructAgentDebug = {
     getState: () => JSON.parse(JSON.stringify(S)),
     drawSimpleBeam,
@@ -414,3 +417,44 @@ export function saveCurrentModel() {
   // For backward compatibility, we'll save with a prompt for name
   saveNamedModel();
 }
+
+export function exportModelJson() {
+  const modelData = {
+    nodes: S.nodes,
+    members: S.members,
+    loads: S.loads,
+    memberLoads: S.memberLoads,
+    analysisType: byId('analysisType').value
+  };
+  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(modelData, null, 2));
+  const anchor = document.createElement('a');
+  anchor.setAttribute('href', dataStr);
+  anchor.setAttribute('download', 'struct_model.json');
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+export function importModelJson(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const modelData = JSON.parse(event.target.result);
+      S.nodes = modelData.nodes || [];
+      S.members = modelData.members || [];
+      S.loads = modelData.loads || [];
+      S.memberLoads = modelData.memberLoads || [];
+      if (modelData.analysisType) byId('analysisType').value = modelData.analysisType;
+      fitModelToCanvas();
+      showProp();
+      draw();
+    } catch (err) {
+      alert('Invalid JSON file');
+    }
+    e.target.value = ''; // reset
+  };
+  reader.readAsText(file);
+}
+

@@ -22,6 +22,11 @@ export function draw() {
   drawNodes3D(isDark);
   drawSupports3D(isDark);
   drawLoads3D(isDark);
+
+  const showDeformed = byId('showDeformed');
+  if (showDeformed && showDeformed.checked && S.results && (S.results.node_displacements || S.results.displacements)) {
+    drawDeformedShape3D(isDark);
+  }
 }
 
 function clearGroup(group) {
@@ -172,3 +177,54 @@ export function showProp() {
     panel.querySelector('#mE').addEventListener('change', (e) => { member.E = parseFloat(e.target.value); });
   }
 }
+
+function drawDeformedShape3D(isDark) {
+  const scaleEl = byId('deformScale');
+  const scaleFactor = scaleEl ? parseFloat(scaleEl.value) : 100;
+  const scale = scaleFactor / 1000.0; // scale from mm to m and apply factor
+
+  const getDefNode = (nodeId) => {
+    const node = S.nodes.find(n => n.id === nodeId);
+    if (!node) return null;
+    let dx = 0, dy = 0, dz = 0;
+    if (S.results.displacements && S.results.displacements[nodeId]) {
+      const d = S.results.displacements[nodeId];
+      dx = d[0]; dy = d[1]; dz = d[2];
+    } else if (S.results.node_displacements && S.results.node_displacements[nodeId]) {
+      const d = S.results.node_displacements[nodeId];
+      dx = d.dx_mm; dy = d.dy_mm;
+    }
+    return { 
+      x: node.x + dx * scale, 
+      y: node.y + dy * scale, 
+      z: (node.z || 0) + dz * scale 
+    };
+  };
+
+  S.members.forEach((member) => {
+    const n1 = getDefNode(member.n1);
+    const n2 = getDefNode(member.n2);
+    if (!n1 || !n2) return;
+
+    const v1 = new THREE.Vector3(n1.x, n1.y, n1.z);
+    const v2 = new THREE.Vector3(n2.x, n2.y, n2.z);
+    const distance = v1.distanceTo(v2);
+    if (distance <= 0) return;
+    
+    const geo = new THREE.CylinderGeometry(0.05, 0.05, distance, 8);
+    geo.translate(0, distance / 2, 0);
+    geo.rotateX(Math.PI / 2);
+    
+    const mat = new THREE.MeshBasicMaterial({ 
+      color: 0xef4444,
+      transparent: true,
+      opacity: 0.6
+    });
+    
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(v1);
+    mesh.lookAt(v2);
+    canvas3d.membersGroup.add(mesh);
+  });
+}
+

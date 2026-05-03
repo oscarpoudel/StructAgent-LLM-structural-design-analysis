@@ -121,6 +121,8 @@ function initDisplayToggles() {
     const el = byId(id);
     if(el) el.addEventListener('change', draw);
   });
+  const deformScale = byId('deformScale');
+  if (deformScale) deformScale.addEventListener('input', draw);
 }
 
 export function updateStatus() {

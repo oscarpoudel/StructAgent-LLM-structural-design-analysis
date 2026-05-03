@@ -51,9 +51,10 @@ class TestBeamSimplySupported:
                 inertia_m4=8e-6,
             )
         )
-        # UDL: R = 30, PL: R_left = 50*4/6 = 33.33, R_right = 50*2/6 = 16.67
+        # UDL: R = 30 each side, PL at 2m: R_left = 50*4/6 = 33.33, R_right = 50*2/6 = 16.67
+        # Total: R_left = 30 + 33.33 = 63.33, R_right = 30 + 16.67 = 46.67
         assert round(result["left_reaction_kn"], 2) == 63.33
-        assert round(result["right_reaction_kn"], 2) == 36.67
+        assert round(result["right_reaction_kn"], 2) == 46.67
     
     def test_deflection_with_point_load(self) -> None:
         result = analyze_beam(
@@ -64,10 +65,10 @@ class TestBeamSimplySupported:
                 inertia_m4=8e-6,
             )
         )
-        # PL deflection at midspan: P*a^3/(48*EI) for a=L/2
-        # = 100000*27/(48*200e9*8e-6) = 0.035156 m = 35.16 mm
+        # PL deflection at midspan: P*L^3/(48*EI)
+        # = 100000*216/(48*200e9*8e-6) = 0.28125 m = 281.25 mm
         assert result["max_deflection_mm"] is not None
-        assert round(result["max_deflection_mm"], 1) == 35.2
+        assert round(result["max_deflection_mm"], 1) == 281.2
 
 
 class TestBeamCantilever:
