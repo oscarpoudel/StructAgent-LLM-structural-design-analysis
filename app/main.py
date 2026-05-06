@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.llm import DisabledLLMClient, OllamaClient, PydanticAIClient
 from app.logging_config import configure_logging, get_logger
 from app.models import (
-    AnalyzeResponse, TrussInputs, FrameInputs,
+    AnalyzeResponse, TrussInputs, FrameInputs, Structure3DInputs,
 )
 from app.agents import StructuralAgentSystem
 from app.tools.report import format_engineering_report
@@ -129,6 +129,15 @@ def _analyze_structure_model(analysis_type: str, model: dict) -> tuple[dict, str
             ["Preliminary elastic analysis.", "All joints pin-connected."],
             [], results, analysis_type="truss",
         )
+    elif analysis_type == "3d_frame":
+        from app.tools.opensees_3d import analyze_3d_structure_opensees as run_3d
+        inputs = Structure3DInputs.model_validate(model)
+        results = run_3d(inputs)
+        report_md = format_engineering_report(
+            "Canvas-drawn 3D frame structure",
+            ["Preliminary elastic 3D analysis.", "Rigid beam-column connections."],
+            [], results, analysis_type="3d_frame",
+        )
     else:
         from app.tools.frame import analyze_frame as run_frame
         inputs = FrameInputs.model_validate(model)
@@ -185,6 +194,7 @@ def create_app() -> Flask:
     app.register_blueprint(pages_bp)
 
     log.info("struct_agent_starting", extra={"env": settings.app_env})
+    print("\nStructAgent running on http://127.0.0.1:5000\n", flush=True)
     return app
 
 

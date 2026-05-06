@@ -12,15 +12,20 @@ export const canvas3d = {
   supportsGroup: null,
   gridHelper: null,
   ghostGridsGroup: null,
+  ghostElevGridsGroup: null,
   groundPlane: null,
   hoverMesh: null,
   axesRenderer: null,
   axesScene: null,
   axesCamera: null,
-  is2D: false,
+  viewMode: 'elevation', // 'plan', 'elevation', '3d'
+  elevAngle: 0, // 0=front, 1=right, 2=back, 3=left
   gridSpacing: 1.0,
   gridCount: 10,
-  currentZ: 0
+  gridSizes: { plan: 0, elev: 0 },
+  levels: [], // [{z, y}] computed from level settings
+  currentZ: 0,
+  currentY: 0
 };
 
 export function initScene() {
@@ -36,8 +41,9 @@ export function initScene() {
   canvas3d.scene.background = new THREE.Color(isDark ? '#0f1419' : '#f8fafb');
   
   canvas3d.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-  canvas3d.camera.position.set(0, -20, 20); 
-  canvas3d.camera.up.set(0, 0, 1); 
+  canvas3d.camera.position.set(0, -30, 0); // Front view looking along -Y
+  canvas3d.camera.up.set(0, 0, 1); // Z is up in elevation
+  canvas3d.camera.lookAt(0, 0, 0); 
 
   canvas3d.controls = new THREE.OrbitControls(canvas3d.camera, canvas3d.renderer.domElement);
   canvas3d.controls.enableDamping = true;
@@ -63,7 +69,9 @@ export function initScene() {
   canvas3d.scene.add(canvas3d.loadsGroup);
   canvas3d.scene.add(canvas3d.supportsGroup);
   canvas3d.ghostGridsGroup = new THREE.Group();
+  canvas3d.ghostElevGridsGroup = new THREE.Group();
   canvas3d.scene.add(canvas3d.ghostGridsGroup);
+  canvas3d.scene.add(canvas3d.ghostElevGridsGroup);
 
   // Ground plane (initially invisible, size 0 until set)
   const planeGeo = new THREE.PlaneGeometry(0, 0);

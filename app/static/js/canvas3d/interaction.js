@@ -48,11 +48,26 @@ function onPointerMove(event) {
     const intersects = raycaster.intersectObject(canvas3d.groundPlane);
     if (intersects.length > 0) {
       const point = intersects[0].point;
-      canvas3d.hoverMesh.position.set(snap(point.x), snap(point.y), canvas3d.currentZ);
+      const snapped = getSnappedPoint(point);
+      canvas3d.hoverMesh.position.set(snapped.x, snapped.y, snapped.z);
       canvas3d.hoverMesh.visible = true;
     }
   } else {
     canvas3d.hoverMesh.visible = false;
+  }
+}
+
+function getSnappedPoint(point) {
+  const mode = canvas3d.viewMode;
+  if (mode === 'plan') {
+    // Plan view: X,Y from raycast, Z = current level
+    return { x: snap(point.x), y: snap(point.y), z: canvas3d.currentZ };
+  } else if (mode === 'elevation') {
+    // Elevation view: X from raycast, Z from raycast (height), Y = 0 (front face)
+    return { x: snap(point.x), y: 0, z: snap(point.z) };
+  } else {
+    // 3D view: X,Y from raycast, Z = current level
+    return { x: snap(point.x), y: snap(point.y), z: canvas3d.currentZ };
   }
 }
 
@@ -88,7 +103,7 @@ function onClick(event) {
     const intersects = raycaster.intersectObject(canvas3d.groundPlane);
     if (intersects.length > 0) {
       const pt = intersects[0].point;
-      addNode({ x: snap(pt.x), y: snap(pt.y), z: canvas3d.currentZ });
+      addNode(getSnappedPoint(pt));
     }
   } else if (S.tool === 'member') {
     if (!canvas3d.gridHelper) {
@@ -104,7 +119,7 @@ function onClick(event) {
       const intersects = raycaster.intersectObject(canvas3d.groundPlane);
       if (intersects.length > 0) {
         const pt = intersects[0].point;
-        addNode({ x: snap(pt.x), y: snap(pt.y), z: canvas3d.currentZ });
+        addNode(getSnappedPoint(pt));
         nodeId = S.nextNodeId - 1; 
       }
     }

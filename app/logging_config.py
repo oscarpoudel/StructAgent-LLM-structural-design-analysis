@@ -42,8 +42,8 @@ def configure_logging(level: str | None = None) -> None:
     root.handlers.clear()
     root.addHandler(handler)
 
-    # Quiet noisy third-party loggers
-    for noisy in ("werkzeug", "urllib3", "httpx", "httpcore"):
+    # Quiet noisy third-party loggers (except werkzeug, which we want for Flask startup logs)
+    for noisy in ("urllib3", "httpx", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

@@ -47,7 +47,17 @@
       <option value="6">Level 2 (6m)</option>
       <option value="9">Level 3 (9m)</option>
     </select>
-    <button id="viewToggleBtn" class="run-btn" style="background:#4b5563;">3D View</button>
+    <div style="display:flex; gap:3px; margin-bottom:4px;">
+      <button id="viewPlanBtn" class="view-btn" title="Plan View (XY top-down)">Plan</button>
+      <button id="viewElevBtn" class="view-btn active" title="Elevation View (XZ front)">Elev</button>
+      <button id="view3DBtn" class="view-btn" title="3D Perspective View">3D</button>
+    </div>
+    <div id="elevRotationBtns" style="display:flex; gap:3px; margin-bottom:4px;">
+      <button id="elevFrontBtn" class="elev-rot-btn active" title="Front Elevation (looking from -Y)">Front</button>
+      <button id="elevRightBtn" class="elev-rot-btn" title="Right Elevation (looking from +X)">Right</button>
+      <button id="elevBackBtn" class="elev-rot-btn" title="Back Elevation (looking from +Y)">Back</button>
+      <button id="elevLeftBtn" class="elev-rot-btn" title="Left Elevation (looking from -X)">Left</button>
+    </div>
     <hr class="toolbar-sep"/>
     <p class="toolbar-title">Grid Configuration</p>
     <div style="display:flex; gap:4px; margin-bottom:8px;">
@@ -74,11 +84,8 @@
     <button id="runBtn" class="run-btn">&#9654; Analyze</button>
     <button id="clearBtn" class="clear-btn">Clear All</button>
     <hr class="toolbar-sep"/>
-    <p class="toolbar-title">Save/Load</p>
-    <button id="saveBtn" class="save-btn">Save Model</button>
-    <button id="loadBtn" class="load-btn">Load Model</button>
-    <button id="manageModelsBtn" class="manage-btn">Manage Models</button>
-    <div style="display:flex; gap:4px; margin-top:4px;">
+    <p class="toolbar-title">Export / Import</p>
+    <div style="display:flex; gap:4px;">
       <button id="exportJsonBtn" class="btn-xs" style="flex:1;">Export JSON</button>
       <button id="importJsonBtn" class="btn-xs" style="flex:1;">Import JSON</button>
     </div>
