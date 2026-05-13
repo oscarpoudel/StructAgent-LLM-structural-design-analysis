@@ -1,7 +1,8 @@
 import { analyzeStructure } from './api.js';
 import { byId } from './dom.js';
-import { draw, fitModelToCanvas } from './canvas3d/index.js';
+import { fitModelToCanvas } from './canvas3d/index.js';
 import { showProp } from './canvas3d/render.js';
+import { triggerRedraw } from './canvas3d/scene.js';
 import { renderResults } from './results.js';
 import { resetModel, S } from './state.js';
 
@@ -43,7 +44,7 @@ async function runAnalysis() {
       byId('showDeformed').checked = true;
       byId('showForces').checked = true;
       renderResults(data);
-      draw();
+      triggerRedraw();
       if (statusEl) statusEl.textContent = `Analysis complete: ${data.analysis_type} (${data.results.solver || 'unknown'})`;
     } else {
       const errMsg = data.message || JSON.stringify(data.errors || data);
@@ -69,24 +70,31 @@ export function buildCurrentAnalysisPayload() {
 function buildModel(analysisType) {
   if (analysisType === 'truss') {
     return {
-      nodes: S.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, support: node.support === 'roller' ? 'roller_x' : node.support })),
+      nodes: S.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, support: node.support === 'roller' ? 'roller_x' : (node.support || 'free') })),
       members: S.members.map((member) => ({ id: member.id, start_node: member.n1, end_node: member.n2, area_m2: member.A, elastic_modulus_gpa: member.E })),
       loads: S.loads.map((load) => ({ node_id: load.nodeId, fx_kn: load.fx, fy_kn: load.fy })),
     };
   }
 
   if (analysisType === '3d_frame') {
+    // Convert slab area loads to nodal loads
+    const slabLoads = [];
+    if (S.slabs) {
+      S.slabs.forEach((slab) => {
+        if (!slab.areaLoad || !slab.nodeIds || slab.nodeIds.length < 3) return;
+        const loadPerNode = Math.abs(slab.areaLoad) * 0.25; // distribute among 4 corners
+        slab.nodeIds.forEach((nid) => {
+          slabLoads.push({ node_id: nid, fx_kn: 0, fy_kn: 0, fz_kn: loadPerNode, mx_kn_m: 0, my_kn_m: 0, mz_kn_m: 0 });
+        });
+      });
+    }
     return {
       nodes: S.nodes.map((node) => ({
         id: node.id,
         x: node.x,
         y: node.y,
         z: node.z || 0,
-        support: node.support === 'roller'
-          ? { ux: false, uy: false, uz: false, rx: false, ry: false, rz: true }
-          : node.support === 'free'
-            ? null
-            : { ux: true, uy: true, uz: true, rx: true, ry: true, rz: true }
+        support: node.support || 'free',
       })),
       members: S.members.map((member) => ({
         id: member.id,
@@ -107,7 +115,7 @@ function buildModel(analysisType) {
         mx_kn_m: 0,
         my_kn_m: 0,
         mz_kn_m: load.moment || 0
-      })),
+      })).concat(slabLoads),
       member_loads: S.memberLoads.map((memberLoad) => ({
         member_id: memberLoad.memberId,
         wy_kn_per_m: memberLoad.udl,
@@ -117,7 +125,7 @@ function buildModel(analysisType) {
   }
 
   return {
-    nodes: S.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, support: node.support === 'roller' ? 'roller' : node.support })),
+    nodes: S.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, support: node.support === 'roller' ? 'roller' : (node.support || 'free') })),
     members: S.members.map((member) => ({ id: member.id, start_node: member.n1, end_node: member.n2, area_m2: member.A, inertia_m4: member.I, elastic_modulus_gpa: member.E })),
     nodal_loads: S.loads.map((load) => ({ node_id: load.nodeId, fx_kn: load.fx, fy_kn: load.fy, moment_kn_m: load.moment || 0 })),
     member_loads: S.memberLoads.map((memberLoad) => ({ member_id: memberLoad.memberId, udl_kn_per_m: memberLoad.udl })),
@@ -131,7 +139,7 @@ export function clearCurrentModel({ confirmFirst = false } = {}) {
   byId('showForces').checked = false;
   byId('rpContent').innerHTML = '<p class="placeholder">Draw a structure and run analysis.</p>';
   showProp();
-  draw();
+  triggerRedraw();
   byId('analysisType').value = 'frame';
   return true;
 }
@@ -208,6 +216,7 @@ export function exportModelJson() {
     version: 1,
     nodes: S.nodes,
     members: S.members,
+    slabs: S.slabs,
     loads: S.loads,
     memberLoads: S.memberLoads,
     analysisType: byId('analysisType').value,
@@ -246,6 +255,7 @@ export function importModelJson(e) {
       clearCurrentModel({ confirmFirst: false });
       S.nodes = modelData.nodes || [];
       S.members = modelData.members || [];
+      S.slabs = modelData.slabs || [];
       S.loads = modelData.loads || [];
       S.memberLoads = modelData.memberLoads || [];
       if (modelData.analysisType) byId('analysisType').value = modelData.analysisType;
@@ -257,9 +267,10 @@ export function importModelJson(e) {
       }
       S.nextNodeId = S.nodes.length ? Math.max(...S.nodes.map(n => n.id)) + 1 : 1;
       S.nextMemberId = S.members.length ? Math.max(...S.members.map(m => m.id)) + 1 : 1;
+      S.nextSlabId = S.slabs.length ? Math.max(...S.slabs.map(s => s.id)) + 1 : 1;
       fitModelToCanvas();
       showProp();
-      draw();
+      triggerRedraw();
       console.info('[StructAgent] Model imported successfully');
     } catch (err) {
       console.error('[StructAgent] Import failed:', err);

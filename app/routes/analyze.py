@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from app.logging_config import get_logger
 from app.models import (
     AnalyzeRequest, AnalyzeResponse, ChatRequest, ChatResponse,
-    TrussInputs, FrameInputs, CanvasAction,
+    TrussInputs, FrameInputs, CanvasAction, EvaluateRequest,
 )
 from app.tools.load_combinations import run_all_load_combinations, get_controlling_combination
 
@@ -137,8 +137,24 @@ def analyze_structure():
     """Accepts a drawn structure (nodes, members, loads) and runs analysis."""
     data = request.get_json(silent=True) or {}
     analysis_type = data.get("analysis_type", "frame")
+    model = data.get("model", {})
+    # Convert string support values to Support3D objects for 3d_frame
+    if analysis_type == "3d_frame" and "nodes" in model:
+        import copy
+        model = copy.deepcopy(model)
+        for node in model.get("nodes", []):
+            s = node.get("support", "free")
+            if isinstance(s, str):
+                if s == "free":
+                    node["support"] = None
+                elif s == "roller":
+                    node["support"] = {"ux": False, "uy": False, "uz": False, "rx": False, "ry": False, "rz": True}
+                elif s == "pin":
+                    node["support"] = {"ux": True, "uy": True, "uz": True, "rx": False, "ry": False, "rz": False}
+                else:  # fixed
+                    node["support"] = {"ux": True, "uy": True, "uz": True, "rx": True, "ry": True, "rz": True}
     try:
-        results, report_md = _analyze_structure_model(analysis_type, data.get("model", {}))
+        results, report_md = _analyze_structure_model(analysis_type, model)
         return jsonify({
             "status": "ok", "analysis_type": analysis_type,
             "results": results, "report_markdown": report_md,
@@ -206,3 +222,36 @@ def validate_model():
         "errors": errors,
         "warnings": warnings_out,
     }), (400 if errors else 200)
+
+
+@bp.post("/api/chat/evaluate")
+def evaluate_results():
+    """Evaluate or explain analysis results using the LLM agent."""
+    data = request.get_json(silent=True) or {}
+    message = data.get("message", "")
+    results = data.get("results", {})
+    analysis_type = data.get("analysis_type", "frame")
+    original_prompt = data.get("prompt", "")
+
+    if not results:
+        return jsonify(ChatResponse(
+            status="ok",
+            response_type="conversation",
+            message="No analysis results available. Run an analysis first.",
+            source="fallback",
+        ).model_dump(mode="json"))
+
+    agent_system = _get_agent_system()
+    eval_result = agent_system.evaluate_results(message, results, analysis_type, original_prompt)
+    return jsonify(ChatResponse(
+        status="ok",
+        response_type="evaluation",
+        message=eval_result.message,
+        source=eval_result.source,
+        quick_actions=[
+            {"label": "Code Check", "action": "code_check"},
+            {"label": "Load Combos", "action": "load_combos"},
+            {"label": "Explain Results", "action": "explain"},
+            {"label": "Compare Limits", "action": "compare_limits"},
+        ],
+    ).model_dump(mode="json"))

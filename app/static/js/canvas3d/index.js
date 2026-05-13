@@ -1,20 +1,22 @@
-import { initScene, startRenderLoop, canvas3d } from './scene.js';
+import { initScene, startRenderLoop, canvas3d, triggerRedraw } from './scene.js';
 import { initUI } from './ui.js';
 import { initInteraction } from './interaction.js';
 import { draw } from './render.js';
 import { S } from '../state.js';
 
-export { draw };
+export { draw, canvas3d };
+
+let _lastWidth = 0;
+let _lastHeight = 0;
 
 export function initCanvas(modals) {
   initScene();
   initUI();
   initInteraction(modals);
-  
+
   window.addEventListener('resize', resizeCanvas);
-  setTimeout(resizeCanvas, 50);
-  
-  startRenderLoop();
+
+  startRenderLoop(draw);
 }
 
 export function resizeCanvas() {
@@ -22,20 +24,25 @@ export function resizeCanvas() {
   const wrap = canvas3d.canvas.parentElement;
   const width = wrap.clientWidth;
   const height = wrap.clientHeight;
-  
-  if (canvas3d.renderer) {
+
+  if (width < 1 || height < 1) return false;
+
+  if (canvas3d.renderer && (width !== _lastWidth || height !== _lastHeight)) {
     canvas3d.renderer.setSize(width, height);
     canvas3d.camera.aspect = width / height;
     canvas3d.camera.updateProjectionMatrix();
+    _lastWidth = width;
+    _lastHeight = height;
   }
-  draw();
+  triggerRedraw();
+  return true;
 }
 
 export function fitModelToCanvas() {
   if (!S.nodes.length) {
     if (canvas3d.camera) {
-      canvas3d.camera.position.set(0, -20, 20);
-      canvas3d.controls.target.set(0, 0, 0);
+      canvas3d.camera.position.set(0, -30, 5);
+      canvas3d.controls.target.set(0, 0, 5);
     }
     return;
   }
@@ -58,13 +65,13 @@ export function fitModelToCanvas() {
   const cy = (minY + maxY) / 2;
   const cz = (minZ + maxZ) / 2;
 
-  const width = Math.max(maxX - minX, 1);
-  const height = Math.max(maxY - minY, 1);
-  
+  const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 10);
+
   if (canvas3d.camera && canvas3d.controls) {
     canvas3d.controls.target.set(cx, cy, cz);
-    canvas3d.camera.position.set(cx, cy - Math.max(width, height) * 1.5, cz + Math.max(width, height));
+    canvas3d.camera.position.set(cx - span * 0.8, cy - span * 0.8, cz + span * 0.6);
+    canvas3d.camera.lookAt(cx, cy, cz);
     canvas3d.controls.update();
   }
-  draw();
+  triggerRedraw();
 }

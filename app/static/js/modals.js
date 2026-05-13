@@ -1,5 +1,6 @@
 import { byId } from './dom.js';
 import { S } from './state.js';
+import { triggerRedraw } from './canvas3d/scene.js';
 
 let draw;
 
@@ -16,7 +17,7 @@ function openModal(title, bodyHtml, onOk) {
   byId('modalOk').onclick = () => {
     onOk(modal);
     overlay.classList.add('hidden');
-    draw();
+    triggerRedraw();
   };
   byId('modalCancel').onclick = () => overlay.classList.add('hidden');
 }
@@ -59,5 +60,28 @@ export function showMemberLoadModal(member) {
     const udl = parseFloat(modal.querySelector('#mudl').value) || 0;
     S.memberLoads = S.memberLoads.filter((memberLoad) => memberLoad.memberId !== member.id);
     if (Math.abs(udl) > 0.001) S.memberLoads.push({ memberId: member.id, udl });
+  });
+}
+
+export function showSlabModal(cornerNodes) {
+  const elev = cornerNodes[0] ? (cornerNodes[0].z || 0) : 0;
+  const ids = cornerNodes.map(n => n.id).join(', ');
+  openModal(`Create Slab - Nodes [${ids}]`, `
+    <div class="pf"><label>Elevation (m)</label><input type="number" value="${elev}" step="0.1" id="slElev"/></div>
+    <div class="pf"><label>Thickness (m)</label><input type="number" value="0.15" step="0.01" id="slThk"/></div>
+    <div class="pf"><label>Area Load (kN/m², +down)</label><input type="number" value="0" step="0.5" id="slLoad"/></div>
+  `, (modal) => {
+    const elevation = parseFloat(modal.querySelector('#slElev').value) || 0;
+    const thickness = parseFloat(modal.querySelector('#slThk').value) || 0.15;
+    const areaLoad = parseFloat(modal.querySelector('#slLoad').value) || 0;
+    const slab = {
+      id: S.nextSlabId++,
+      nodeIds: cornerNodes.map(n => n.id),
+      elevation,
+      thickness,
+      areaLoad,
+    };
+    S.slabs.push(slab);
+    S.slabCorners = [];
   });
 }

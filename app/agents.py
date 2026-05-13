@@ -184,6 +184,90 @@ class StructuralAgentSystem:
         except Exception:
             return ConversationResult(message=agent.fallback["summary"], source="fallback")
 
+    def evaluate_results(
+        self, message: str, results: dict[str, Any], analysis_type: str, original_prompt: str
+    ) -> ConversationResult:
+        """Evaluate or explain analysis results with engineering context."""
+        agent = self.managed_agents["conversation"]
+        results_summary = self._summarize_results(results, analysis_type)
+        task = (
+            f"You are reviewing structural analysis results.\n\n"
+            f"Original request: {original_prompt}\n"
+            f"Analysis type: {analysis_type}\n\n"
+            f"Results summary:\n{results_summary}\n\n"
+            f"User question: {message}\n\n"
+            "Answer the user's question based on the results. Be specific with numbers from the results. "
+            "If asking whether results are good, evaluate against typical engineering criteria: "
+            "- Deflection limits (L/360 for live load, L/240 for total load)\n"
+            "- Utilization ratios (axial, bending, shear)\n"
+            "- Stability and serviceability\n"
+            "- Code compliance indicators\n"
+            "Use bullet points for clarity. Keep it under 8 sentences. "
+            "If the question is about code compliance, reference AISC/ASCE/IBC where relevant. "
+            "Always note this is preliminary and not a substitute for licensed engineering review."
+        )
+        try:
+            response = self._generate_with_timeout(agent.instructions, task).strip()
+            return ConversationResult(
+                message=response or "Unable to evaluate results at this time.",
+                source="llm"
+            )
+        except Exception:
+            return ConversationResult(
+                message=f"Results summary for {analysis_type}:\n{results_summary}\n\n"
+                "I cannot provide a detailed evaluation without the LLM. Check the numbers against your design criteria.",
+                source="fallback"
+            )
+
+    def _summarize_results(self, results: dict[str, Any], analysis_type: str) -> str:
+        """Create a concise text summary of results for the LLM."""
+        lines = []
+        solver = results.get("solver", "unknown")
+        lines.append(f"Solver: {solver}")
+        is_finite = results.get("is_finite", True)
+        lines.append(f"All results finite: {is_finite}")
+
+        if analysis_type == "beam":
+            lines.append(f"Span: {results.get('span_m', 'N/A')} m")
+            lines.append(f"Max moment: {results.get('max_moment_kn_m', 'N/A')} kN-m")
+            lines.append(f"Max shear: {results.get('max_shear_kn', 'N/A')} kN")
+            lines.append(f"Max deflection: {results.get('max_deflection_mm', 'N/A')} mm")
+            lines.append(f"Deflection OK: {results.get('deflection_ok', 'N/A')}")
+            lines.append(f"Stress OK: {results.get('stress_ok', 'N/A')}")
+            lines.append(f"Utilization: {results.get('utilization_ratio', 'N/A')}")
+        elif analysis_type in ("frame", "3d_frame"):
+            lines.append(f"Max displacement: {results.get('max_displacement_mm', 'N/A')} mm")
+            nd = results.get("node_displacements", {})
+            lines.append(f"Node displacements: {len(nd)} nodes")
+            reactions = results.get("reactions", {})
+            lines.append(f"Reactions: {len(reactions)} supports")
+            mf = results.get("member_forces", {})
+            lines.append(f"Member forces: {len(mf)} members")
+            for mid, forces in mf.items():
+                lines.append(
+                    f"  Member {mid}: P={forces.get('axial_start_kn', 'N/A')} kN, "
+                    f"V={forces.get('shear_start_kn', 'N/A')} kN, "
+                    f"M={forces.get('moment_start_kn_m', 'N/A')} kN-m"
+                )
+        elif analysis_type == "truss":
+            mf = results.get("member_forces", {})
+            lines.append(f"Member forces: {len(mf)} members")
+            for mid, forces in mf.items():
+                lines.append(
+                    f"  Member {mid}: {forces.get('axial_kn', 'N/A')} kN "
+                    f"({forces.get('tension_or_compression', 'N/A')})"
+                )
+            reactions = results.get("reactions", {})
+            lines.append(f"Reactions: {len(reactions)} supports")
+        elif analysis_type == "column":
+            lines.append(f"Slenderness ratio: {results.get('slenderness_ratio', 'N/A')}")
+            lines.append(f"Pn (design capacity): {results.get('design_capacity_kn', 'N/A')} kN")
+            lines.append(f"Applied load: {results.get('axial_load_kn', 'N/A')} kN")
+            lines.append(f"Utilization: {results.get('utilization_ratio', 'N/A')}")
+            lines.append(f"OK: {results.get('ok', 'N/A')}")
+
+        return "\n".join(lines)
+
     def route_canvas_tool(self, message: str) -> tuple[CanvasToolDecision, str]:
         agent = self.managed_agents["canvas_router"]
         fallback = self._fallback_canvas_tool_decision(message)

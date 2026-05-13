@@ -224,6 +224,13 @@ class CanvasToolDecision(BaseModel):
     confidence: float = 0.0
 
 
+class EvaluateRequest(BaseModel):
+    message: str
+    results: dict[str, Any] = Field(default_factory=dict)
+    analysis_type: str = "frame"
+    prompt: str = ""
+
+
 class ChatResponse(BaseModel):
     status: str
     response_type: str
@@ -231,3 +238,4 @@ class ChatResponse(BaseModel):
     source: str
     analysis: AnalyzeResponse | None = None
     canvas_action: CanvasAction | None = None
+    quick_actions: list[dict[str, Any]] | None = None

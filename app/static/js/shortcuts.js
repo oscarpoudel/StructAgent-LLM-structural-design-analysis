@@ -1,6 +1,7 @@
 import { byId } from './dom.js';
 import { S } from './state.js';
-import { draw, showProp } from './canvas3d/render.js';
+import { showProp } from './canvas3d/render.js';
+import { triggerRedraw } from './canvas3d/scene.js';
 import { clearCurrentModel } from './analysis.js';
 
 export function initShortcuts() {
@@ -15,6 +16,7 @@ export function initShortcuts() {
     if (key === 'm') { document.querySelector('[data-tool="member"]').click(); }
     if (key === 's') { document.querySelector('[data-tool="support"]').click(); }
     if (key === 'l') { document.querySelector('[data-tool="load"]').click(); }
+    if (key === 'b') { document.querySelector('[data-tool="slab"]').click(); }
     if (key === 'escape' || key === 'v') { document.querySelector('[data-tool="select"]').click(); }
 
     // Delete selected element
@@ -29,10 +31,12 @@ export function initShortcuts() {
           const memberId = S.selected.id;
           S.members = S.members.filter(m => m.id !== memberId);
           S.memberLoads = S.memberLoads.filter(l => l.memberId !== memberId);
+        } else if (S.selected.type === 'slab') {
+          S.slabs = S.slabs.filter(s => s.id !== S.selected.id);
         }
         S.selected = null;
         showProp();
-        draw();
+        triggerRedraw();
       } else if (S.tool === 'delete') {
         document.querySelector('[data-tool="select"]').click();
       } else {

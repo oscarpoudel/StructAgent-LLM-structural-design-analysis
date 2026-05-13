@@ -13,6 +13,9 @@ const EXAMPLES = {
   col: 'Check a column for buckling. Length 5 m, pinned-pinned, area 0.008 m2, I 6e-5 m4, E 200 GPa, Fy 345 MPa, axial load 800 kN.',
 };
 
+let lastAnalysisPrompt = '';
+let lastAnalysisType = '';
+
 export function initChat() {
   initFloatingChat();
 
@@ -32,19 +35,107 @@ export function initChat() {
     const pending = addMsg('bot', 'Responding...');
 
     try {
-      const data = await sendChat({ message, ...buildCurrentAnalysisPayload() });
+      const payload = { message, ...buildCurrentAnalysisPayload() };
+      const data = await sendChat(payload);
       pending.querySelector('p').textContent = data.message || 'Done.';
+      if (data.quick_actions) {
+        addQuickActions(pending, data.quick_actions);
+      }
       if (data.response_type === 'canvas_action' && data.canvas_action) {
         runCanvasAction(data.canvas_action, pending);
       }
       if (data.response_type === 'analysis' && data.analysis) {
         S.results = data.analysis.results;
+        lastAnalysisPrompt = message;
+        lastAnalysisType = data.analysis.analysis_type || 'frame';
         renderResults(data.analysis);
+        addAnalysisActions(pending);
+      }
+      if (data.response_type === 'evaluation') {
+        addQuickActions(pending, data.quick_actions || []);
       }
     } catch (error) {
-      pending.querySelector('p').textContent = 'Error reaching server.';
+      console.error('[StructAgent] Chat error:', error);
+      pending.querySelector('p').textContent = 'Error reaching server. Check console for details.';
     }
   });
+}
+
+async function handleQuickAction(action, messageEl) {
+  if (!S.results) {
+    const p = messageEl.querySelector('p');
+    p.textContent = 'No analysis results to evaluate. Run an analysis first.';
+    return;
+  }
+
+  const p = messageEl.querySelector('p');
+  p.textContent = 'Thinking...';
+
+  const prompts = {
+    evaluate: 'Are these analysis results acceptable? Evaluate against typical engineering criteria including deflection limits, utilization ratios, and code compliance.',
+    code_check: 'Check these results against AISC/ASCE/IBC code requirements. What code provisions apply? Are there any code violations or concerns?',
+    explain: 'Explain these analysis results in plain language. What do the key numbers mean? What should I pay attention to?',
+    load_combos: 'What load combinations should I consider for this structure? Show the controlling combination and explain why.',
+    compare_limits: 'Compare the key result values against typical design limits. Show pass/fail for each check with the limit values.',
+    reanalyze: 'Re-run the analysis with the current model.',
+    export: 'Export the current model.',
+  };
+
+  const evalPrompt = prompts[action] || prompts.evaluate;
+
+  try {
+    const response = await fetch('/api/chat/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: evalPrompt,
+        results: S.results,
+        analysis_type: lastAnalysisType,
+        prompt: lastAnalysisPrompt,
+      }),
+    });
+    const data = await response.json();
+    p.textContent = data.message || 'Unable to evaluate.';
+    if (data.quick_actions) {
+      addQuickActions(messageEl, data.quick_actions);
+    }
+  } catch (error) {
+    console.error('[StructAgent] Evaluate error:', error);
+    p.textContent = 'Error evaluating results: ' + error.message;
+  }
+}
+
+function addQuickActions(container, actions) {
+  const bar = document.createElement('div');
+  bar.className = 'chat-actions';
+  actions.forEach((a) => {
+    const btn = document.createElement('button');
+    btn.className = 'chat-action-btn';
+    btn.textContent = a.label;
+    btn.addEventListener('click', () => handleQuickAction(a.action, container));
+    bar.appendChild(btn);
+  });
+  container.appendChild(bar);
+}
+
+function addAnalysisActions(container) {
+  const bar = document.createElement('div');
+  bar.className = 'chat-actions';
+  const actions = [
+    { label: 'Evaluate', action: 'evaluate' },
+    { label: 'Code Check', action: 'code_check' },
+    { label: 'Explain', action: 'explain' },
+    { label: 'Load Combos', action: 'load_combos' },
+    { label: 'Limits', action: 'compare_limits' },
+  ];
+  actions.forEach((a) => {
+    const btn = document.createElement('button');
+    btn.className = 'chat-action-btn';
+    btn.textContent = a.label;
+    btn.addEventListener('click', () => handleQuickAction(a.action, container));
+    bar.appendChild(btn);
+  });
+  container.appendChild(bar);
 }
 
 function runCanvasAction(canvasAction, pendingMessage) {

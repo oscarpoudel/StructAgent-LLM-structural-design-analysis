@@ -1,12 +1,17 @@
 import { $$ } from './dom.js';
 
+const TAB_PAGES = ['tab-draw', 'tab-sections', 'tab-history'];
+
 export function initTabs({ onDrawTab }) {
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       $$('.tab').forEach((button) => button.classList.remove('active'));
-      $$('.page').forEach((page) => {
-        page.classList.add('hidden');
-        page.classList.remove('active');
+      TAB_PAGES.forEach(id => {
+        const page = document.getElementById(id);
+        if (page) {
+          page.classList.add('hidden');
+          page.classList.remove('active');
+        }
       });
 
       tab.classList.add('active');
