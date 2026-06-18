@@ -21,6 +21,7 @@ export const canvas3d = {
   axesRenderer: null,
   axesScene: null,
   axesCamera: null,
+  axesLabels: null,
   viewMode: 'elevation',
   elevType: 'xAxis',
   selectedElevGrid: 0,
@@ -111,6 +112,41 @@ export function initScene() {
   canvas3d.axesCamera.position.set(0, 0, 10);
   canvas3d.axesCamera.up.set(0, 0, 1);
   canvas3d.axesScene.add(new THREE.AxesHelper(1.2));
+  addAxesLabels();
+}
+
+function createAxisLabel(text, color) {
+  const labelCanvas = document.createElement('canvas');
+  labelCanvas.width = 96;
+  labelCanvas.height = 96;
+  const ctx = labelCanvas.getContext('2d');
+  ctx.font = 'bold 54px Inter, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillStyle = color;
+  ctx.strokeText(text, 48, 50);
+  ctx.fillText(text, 48, 50);
+
+  const texture = new THREE.CanvasTexture(labelCanvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.35, 0.35, 0.35);
+  return sprite;
+}
+
+function addAxesLabels() {
+  const labels = new THREE.Group();
+  const x = createAxisLabel('X', '#ef4444');
+  const y = createAxisLabel('Y', '#22c55e');
+  const z = createAxisLabel('Z', '#3b82f6');
+  x.position.set(1.45, 0, 0);
+  y.position.set(0, 1.45, 0);
+  z.position.set(0, 0, 1.45);
+  labels.add(x, y, z);
+  canvas3d.axesLabels = labels;
+  canvas3d.axesScene.add(labels);
 }
 
 export function startRenderLoop(drawFn) {

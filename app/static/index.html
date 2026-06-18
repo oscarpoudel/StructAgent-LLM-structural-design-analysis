@@ -189,15 +189,14 @@
       <option value="frame">Frame</option>
       <option value="truss">Truss</option>
     </select>
+    <label class="mini-label" for="loadComboSelect">Load Combo</label>
+    <select id="loadComboSelect" class="tool-select"></select>
+    <label class="chk"><input type="checkbox" id="rigidDiaphragmToggle" checked/> Rigid floor diaphragms</label>
+    <button id="draw333FrameBtn" class="btn-xs" style="width:100%; margin-bottom:4px;">3x3 3-Story Frame</button>
+    <button id="applySectionGroupsBtn" class="btn-xs" style="width:100%; margin-bottom:4px;">Apply Beam/Column Sections</button>
     <button id="runBtn" class="run-btn">&#9654; Analyze</button>
+    <button id="clearAnalysisBtn" class="clear-btn">Clear Analysis</button>
     <button id="clearBtn" class="clear-btn">Clear Model</button>
-    <hr class="toolbar-sep"/>
-    <p class="toolbar-title">Export / Import</p>
-    <div style="display:flex; gap:4px;">
-      <button id="exportJsonBtn" class="btn-xs" style="flex:1;">Export</button>
-      <button id="importJsonBtn" class="btn-xs" style="flex:1;">Import</button>
-    </div>
-    <input type="file" id="importJsonFile" style="display:none;" accept=".json" />
     <hr class="toolbar-sep"/>
     <p class="toolbar-title">Display</p>
     <label class="chk"><input type="checkbox" id="showGrid" checked/> Grid</label>

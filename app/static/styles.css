@@ -147,6 +147,10 @@ p{margin:0;}
   font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;
   color:var(--text3);margin:8px 0 4px;
 }
+.mini-label{
+  display:block;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;
+  color:var(--text3);margin:3px 0 2px;
+}
 .toolbar-sep{border:none;border-top:1px solid var(--border);margin:6px 0;}
 .tool-btn{
   display:flex;align-items:center;gap:8px;

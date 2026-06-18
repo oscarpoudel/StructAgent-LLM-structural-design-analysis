@@ -33,18 +33,23 @@ export function fetchHistory(limit = 50) {
   return jsonRequest(`/api/history?limit=${limit}`);
 }
 
-export function exportCsv(results) {
+export function exportCsv(analysis) {
   return fetch('/api/export/csv', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ results }),
+    body: JSON.stringify({ analysis, results: analysis?.results || analysis }),
   });
 }
 
-export function exportReport(reportMarkdown) {
+export function exportReport(analysis) {
   return fetch('/api/export/report', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ report_markdown: reportMarkdown }),
+    body: JSON.stringify({
+      analysis,
+      analysis_type: analysis?.analysis_type,
+      report_markdown: analysis?.report_markdown || analysis,
+      results: analysis?.results,
+    }),
   });
 }

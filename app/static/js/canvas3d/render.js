@@ -72,6 +72,11 @@ export function draw() {
   drawLoads3D(isDark);
   drawMemberLoads3D(isDark);
 
+  const showForces = byId('showForces');
+  if (showForces && showForces.checked && S.results && S.results.member_force_summary) {
+    drawMemberForceOverlay3D();
+  }
+
   const showDeformed = byId('showDeformed');
   if (showDeformed && showDeformed.checked && S.results && (S.results.node_displacements || S.results.displacements)) {
     drawDeformedShape3D(isDark);
@@ -699,10 +704,17 @@ export function showProp() {
     if (!member) { panel.innerHTML = ''; return; }
     panel.innerHTML = `
       <div class="pf"><label>Member ${member.id} (${member.n1}-${member.n2})</label></div>
+      <div class="pf"><label>Group</label><select id="mGroup">
+        <option value="beam" ${(member.group || '') === 'beam' ? 'selected' : ''}>Beam</option>
+        <option value="column" ${(member.group || '') === 'column' ? 'selected' : ''}>Column</option>
+        <option value="brace" ${(member.group || '') === 'brace' ? 'selected' : ''}>Brace</option>
+        <option value="member" ${(member.group || 'member') === 'member' ? 'selected' : ''}>Generic</option>
+      </select></div>
       <div class="pf"><label>A (m2)</label><input type="text" value="${member.A}" id="mA"/></div>
       <div class="pf"><label>Iy (m4)</label><input type="text" value="${member.Iy||1e-4}" id="mIy"/></div>
       <div class="pf"><label>Iz (m4)</label><input type="text" value="${member.Iz||1e-4}" id="mIz"/></div>
       <div class="pf"><label>E (GPa)</label><input type="number" value="${member.E}" step="1" id="mE"/></div>`;
+    panel.querySelector('#mGroup').addEventListener('change', (e) => { member.group = e.target.value; triggerRedraw(); });
     panel.querySelector('#mA').addEventListener('change', (e) => { member.A = parseFloat(e.target.value); });
     panel.querySelector('#mIy').addEventListener('change', (e) => { member.Iy = parseFloat(e.target.value); });
     panel.querySelector('#mIz').addEventListener('change', (e) => { member.Iz = parseFloat(e.target.value); });
@@ -720,6 +732,40 @@ export function showProp() {
     panel.querySelector('#sElev').addEventListener('change', (e) => { slab.elevation = parseFloat(e.target.value) || 0; triggerRedraw(); });
     panel.querySelector('#sLoad').addEventListener('change', (e) => { slab.areaLoad = parseFloat(e.target.value) || 0; });
   }
+}
+
+function drawMemberForceOverlay3D() {
+  const summaries = S.results.member_force_summary || {};
+  const values = Object.values(summaries).map(s => Math.max(s.max_abs_moment_y_kn_m || 0, s.max_abs_moment_z_kn_m || 0, s.max_abs_axial_kn || 0));
+  const maxVal = Math.max(...values, 1e-9);
+
+  S.members.forEach((member) => {
+    const summary = summaries[String(member.id)] || summaries[member.id];
+    if (!summary) return;
+    const n1 = S.nodes.find((n) => n.id === member.n1);
+    const n2 = S.nodes.find((n) => n.id === member.n2);
+    if (!n1 || !n2) return;
+
+    const demand = Math.max(summary.max_abs_moment_y_kn_m || 0, summary.max_abs_moment_z_kn_m || 0, summary.max_abs_axial_kn || 0);
+    if (demand <= 0) return;
+    const ratio = Math.min(demand / maxVal, 1);
+    const color = ratio > 0.66 ? 0xef4444 : ratio > 0.33 ? 0xf97316 : 0x22c55e;
+    const radius = 0.08 + ratio * 0.16;
+
+    const v1 = new THREE.Vector3(n1.x, n1.y, n1.z || 0);
+    const v2 = new THREE.Vector3(n2.x, n2.y, n2.z || 0);
+    const distance = v1.distanceTo(v2);
+    if (distance <= 0) return;
+
+    const geo = new THREE.CylinderGeometry(radius, radius, distance, 10);
+    geo.translate(0, distance / 2, 0);
+    geo.rotateX(Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.42, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(v1);
+    mesh.lookAt(v2);
+    canvas3d.membersGroup.add(mesh);
+  });
 }
 
 function drawDeformedShape3D(isDark) {

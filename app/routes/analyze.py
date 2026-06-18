@@ -138,21 +138,6 @@ def analyze_structure():
     data = request.get_json(silent=True) or {}
     analysis_type = data.get("analysis_type", "frame")
     model = data.get("model", {})
-    # Convert string support values to Support3D objects for 3d_frame
-    if analysis_type == "3d_frame" and "nodes" in model:
-        import copy
-        model = copy.deepcopy(model)
-        for node in model.get("nodes", []):
-            s = node.get("support", "free")
-            if isinstance(s, str):
-                if s == "free":
-                    node["support"] = None
-                elif s == "roller":
-                    node["support"] = {"ux": False, "uy": False, "uz": False, "rx": False, "ry": False, "rz": True}
-                elif s == "pin":
-                    node["support"] = {"ux": True, "uy": True, "uz": True, "rx": False, "ry": False, "rz": False}
-                else:  # fixed
-                    node["support"] = {"ux": True, "uy": True, "uz": True, "rx": True, "ry": True, "rz": True}
     try:
         results, report_md = _analyze_structure_model(analysis_type, model)
         return jsonify({

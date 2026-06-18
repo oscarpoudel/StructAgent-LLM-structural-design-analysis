@@ -55,12 +55,12 @@ function onPointerMove(event) {
   }
 
   if (S.tool === 'node' || S.tool === 'member') {
-    const intersects = raycaster.intersectObject(canvas3d.groundPlane);
-    if (intersects.length > 0) {
-      const point = intersects[0].point;
-      const snapped = getSnappedPoint(point);
+    const snapped = getSnappedPointFromPointer();
+    if (snapped) {
       canvas3d.hoverMesh.position.set(snapped.x, snapped.y, snapped.z);
       canvas3d.hoverMesh.visible = true;
+    } else {
+      canvas3d.hoverMesh.visible = false;
     }
   } else {
     canvas3d.hoverMesh.visible = false;
@@ -80,6 +80,59 @@ function snapToGrid(val, positions) {
 
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
+}
+
+function getLevels() {
+  const levels = canvas3d.levels.map((level) => level.elevation);
+  return levels.length ? levels : [0];
+}
+
+function getSnappedPointFromPointer() {
+  if (canvas3d.viewMode === '3d') {
+    return get3DGridSnapFromPointer();
+  }
+
+  const intersects = raycaster.intersectObject(canvas3d.groundPlane);
+  if (!intersects.length) return null;
+  return getSnappedPoint(intersects[0].point);
+}
+
+function get3DGridSnapFromPointer() {
+  const xLines = canvas3d.gridLinesX.length ? canvas3d.gridLinesX : [0];
+  const yLines = canvas3d.gridLinesY.length ? canvas3d.gridLinesY : [0];
+  const levels = getLevels();
+  const maxScreenDistance = 0.12;
+  let best = null;
+  let bestDist = Infinity;
+
+  xLines.forEach((x) => {
+    yLines.forEach((y) => {
+      levels.forEach((z) => {
+        const projected = new THREE.Vector3(x, y, z).project(canvas3d.camera);
+        if (projected.z < -1 || projected.z > 1) return;
+        const dist = Math.hypot(projected.x - mouse.x, projected.y - mouse.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = { x, y, z };
+        }
+      });
+    });
+  });
+
+  if (best && bestDist <= maxScreenDistance) return best;
+
+  const intersections = [];
+  levels.forEach((z) => {
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z);
+    const point = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(plane, point)) {
+      intersections.push({ point, targetDist: Math.abs(z - canvas3d.controls.target.z) });
+    }
+  });
+  if (!intersections.length) return null;
+
+  intersections.sort((a, b) => a.targetDist - b.targetDist);
+  return getSnappedPoint(intersections[0].point);
 }
 
 function getSnappedPoint(point) {
@@ -120,7 +173,10 @@ function getSnappedPoint(point) {
       return { x: fixVal, y: snappedY, z: snappedZ };
     }
   } else {
-    return { x: snap(point.x, xSpacing), y: snap(point.y, ySpacing), z: canvas3d.currentPlanZ };
+    const x = snapToGrid(point.x, canvas3d.gridLinesX);
+    const y = snapToGrid(point.y, canvas3d.gridLinesY);
+    const z = snapToGrid(point.z, getLevels());
+    return { x, y, z };
   }
 }
 
@@ -156,11 +212,8 @@ function onClick(event) {
     triggerRedraw();
 
   } else if (S.tool === 'node') {
-    const intersects = raycaster.intersectObject(canvas3d.groundPlane);
-    if (intersects.length > 0) {
-      const pt = intersects[0].point;
-      addNode(getSnappedPoint(pt));
-    }
+    const snapped = getSnappedPointFromPointer();
+    if (snapped) addNode(snapped);
   } else if (S.tool === 'member') {
     const intersectsNodes = raycaster.intersectObjects(canvas3d.nodesGroup.children);
     let nodeId = null;
@@ -168,11 +221,9 @@ function onClick(event) {
     if (intersectsNodes.length > 0) {
       nodeId = intersectsNodes[0].object.userData.id;
     } else {
-      const intersects = raycaster.intersectObject(canvas3d.groundPlane);
-      if (intersects.length > 0) {
-        const pt = intersects[0].point;
-        addNode(getSnappedPoint(pt));
-        nodeId = S.nextNodeId - 1;
+      const snapped = getSnappedPointFromPointer();
+      if (snapped) {
+        nodeId = addNode(snapped);
       }
     }
 
@@ -262,10 +313,14 @@ function addNode(snapped) {
   const duplicate = S.nodes.find((n) =>
     Math.abs(n.x - snapped.x) < 0.01 && Math.abs(n.y - snapped.y) < 0.01 && Math.abs((n.z || 0) - (snapped.z || 0)) < 0.01
   );
+  if (duplicate) return duplicate.id;
   if (!duplicate) {
-    S.nodes.push({ id: S.nextNodeId++, x: snapped.x, y: snapped.y, z: snapped.z || 0, support: 'free' });
+    const id = S.nextNodeId++;
+    S.nodes.push({ id, x: snapped.x, y: snapped.y, z: snapped.z || 0, support: 'free' });
     triggerRedraw();
+    return id;
   }
+  return null;
 }
 
 function addMemberDirect(n1, n2) {

@@ -130,7 +130,7 @@ def _analyze_structure_model(analysis_type: str, model: dict) -> tuple[dict, str
                 if s == "free":
                     node["support"] = None
                 elif s == "roller":
-                    node["support"] = {"ux": False, "uy": False, "uz": False, "rx": False, "ry": False, "rz": True}
+                    node["support"] = {"ux": False, "uy": False, "uz": True, "rx": False, "ry": False, "rz": False}
                 elif s == "pin":
                     node["support"] = {"ux": True, "uy": True, "uz": True, "rx": False, "ry": False, "rz": False}
                 else:  # fixed

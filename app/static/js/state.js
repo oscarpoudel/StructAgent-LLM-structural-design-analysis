@@ -13,6 +13,14 @@ export const S = {
   memberStart: null,
   slabCorners: [],
   results: null,
+  rigidDiaphragms: true,
+  activeLoadCombination: '1.0D + 1.0L',
+  loadCombinations: [
+    { name: '1.0D + 1.0L', factors: { D: 1.0, L: 1.0 } },
+    { name: '1.2D + 1.6L', factors: { D: 1.2, L: 1.6 } },
+    { name: '1.2D + 1.0EX + 0.5L', factors: { D: 1.2, EX: 1.0, L: 0.5 } },
+    { name: '1.2D + 1.0EY + 0.5L', factors: { D: 1.2, EY: 1.0, L: 0.5 } },
+  ],
   dragging: false,
   dragStart: null,
   dragNode: null,
@@ -34,5 +42,7 @@ export function resetModel() {
   S.selected = null;
   S.results = null;
   S.memberStart = null;
+  S.rigidDiaphragms = true;
+  S.activeLoadCombination = '1.0D + 1.0L';
   S._lastExport = null;
 }

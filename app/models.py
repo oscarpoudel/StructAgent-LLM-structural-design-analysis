@@ -158,10 +158,12 @@ class Member3D(BaseModel):
     j_m4: float = 1e-4
     elastic_modulus_gpa: float = 200.0
     shear_modulus_gpa: float = 77.0
+    group: str = "member"
 
 
 class Load3D(BaseModel):
     node_id: int
+    case: str = "D"
     fx_kn: float = 0.0
     fy_kn: float = 0.0
     fz_kn: float = 0.0
@@ -172,8 +174,14 @@ class Load3D(BaseModel):
 
 class MemberLoad3D(BaseModel):
     member_id: int
+    case: str = "D"
     wy_kn_per_m: float = 0.0
     wz_kn_per_m: float = 0.0
+
+
+class LoadCombination3D(BaseModel):
+    name: str
+    factors: dict[str, float]
 
 
 class Structure3DInputs(BaseModel):
@@ -181,6 +189,9 @@ class Structure3DInputs(BaseModel):
     members: list[Member3D]
     nodal_loads: list[Load3D] = Field(default_factory=list)
     member_loads: list[MemberLoad3D] = Field(default_factory=list)
+    load_combinations: list[LoadCombination3D] = Field(default_factory=list)
+    active_load_combination: str | None = None
+    rigid_diaphragms: bool = False
 
 
 # ---------------------------------------------------------------------------

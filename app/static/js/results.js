@@ -1,4 +1,3 @@
-import { exportCsv, exportReport } from './api.js';
 import { byId, downloadBlob } from './dom.js';
 import { S } from './state.js';
 
@@ -9,10 +8,16 @@ export function renderResults(data) {
 
   const metricsDef = [
     ['Solver', results.solver, ''],
+    ['Load Combo', results.load_combination, ''],
+    ['Diaphragm', results.rigid_diaphragms ? 'Rigid' : 'None', ''],
     ['Nodes', results.num_nodes, ''],
     ['Members', results.num_members, ''],
     ['Max Displacement', results.max_displacement_mm, 'mm'],
+    ['Max Translation', results.max_translation_mm, 'mm'],
     ['Max Reaction', results.max_reaction_kn, 'kN'],
+    ['Base Fx', results.base_reactions?.Fx_kn, 'kN'],
+    ['Base Fy', results.base_reactions?.Fy_kn, 'kN'],
+    ['Base Fz', results.base_reactions?.Fz_kn, 'kN'],
     ['Max Shear', results.max_shear_kn, 'kN'],
     ['Max Moment', results.max_moment_kn_m, 'kN-m'],
     ['Max Deflection', results.max_deflection_mm, 'mm'],
@@ -39,11 +44,50 @@ export function renderResults(data) {
   content.appendChild(grid);
 
   renderDrawPlot(content, data);
+  renderCombinationSummary(content, results);
   renderReactions(content, data);
   renderMemberForces(content, data);
+  renderStoryResponse(content, results);
   renderDisplacements(content, results);
   renderReport(content, data.report_markdown);
   S._lastExport = data;
+}
+
+function renderCombinationSummary(content, results) {
+  if (!results.combination_results) return;
+  const section = document.createElement('details');
+  section.open = true;
+  let html = '<summary>Load Combination Summary</summary><div class="rp-table"><table><tr><th>Combination</th><th>Max Translation (mm)</th><th>Base Fx (kN)</th><th>Base Fy (kN)</th><th>Base Fz (kN)</th></tr>';
+  Object.entries(results.combination_results).forEach(([name, combo]) => {
+    const active = name === results.load_combination ? ' <strong>(active)</strong>' : '';
+    html += `<tr><td>${name}${active}</td><td>${(combo.max_translation_mm || 0).toFixed(4)}</td><td>${(combo.base_reactions?.Fx_kn || 0).toFixed(2)}</td><td>${(combo.base_reactions?.Fy_kn || 0).toFixed(2)}</td><td>${(combo.base_reactions?.Fz_kn || 0).toFixed(2)}</td></tr>`;
+  });
+  html += '</table></div>';
+  section.innerHTML = html;
+  content.appendChild(section);
+}
+
+function renderStoryResponse(content, results) {
+  if (!results.story_response || !results.story_response.levels?.length) return;
+  const section = document.createElement('details');
+  section.open = true;
+  let html = '<summary>Story Response</summary><div class="rp-table"><table><tr><th>Level Elev. (m)</th><th>Max Ux (mm)</th><th>Max Uy (mm)</th><th>Max Lateral (mm)</th></tr>';
+  results.story_response.levels.forEach((level) => {
+    html += `<tr><td>${(level.elevation_m || 0).toFixed(2)}</td><td>${(level.max_ux_mm || 0).toFixed(4)}</td><td>${(level.max_uy_mm || 0).toFixed(4)}</td><td>${(level.max_lateral_mm || 0).toFixed(4)}</td></tr>`;
+  });
+  html += '</table></div>';
+
+  if (results.story_response.story_drifts?.length) {
+    html += '<div class="rp-table"><table><tr><th>Story</th><th>Height (m)</th><th>Drift (mm)</th><th>Drift Ratio</th></tr>';
+    results.story_response.story_drifts.forEach((story) => {
+      const ratio = story.drift_ratio ? `1/${story.drift_ratio.toFixed(0)}` : '-';
+      html += `<tr><td>${(story.from_m || 0).toFixed(2)}-${(story.to_m || 0).toFixed(2)}</td><td>${(story.height_m || 0).toFixed(2)}</td><td>${(story.drift_mm || 0).toFixed(4)}</td><td>${ratio}</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
+  section.innerHTML = html;
+  content.appendChild(section);
 }
 
 function formatBoolean(value) {
@@ -265,6 +309,13 @@ function renderMemberForces(content, data) {
   let html = '<summary>Member Forces</summary><div class="rp-table"><table>';
   
   if (data.analysis_type === '3d_frame') {
+    if (results.member_force_summary) {
+      html += '<tr><th>Member</th><th>Group</th><th>|P|max</th><th>|Vy|max</th><th>|Vz|max</th><th>|My|max</th><th>|Mz|max</th><th>|T|max</th></tr>';
+      Object.entries(results.member_force_summary).forEach(([memberId, f]) => {
+        html += `<tr><td>${memberId}</td><td>${f.group || ''}</td><td>${(f.max_abs_axial_kn || 0).toFixed(1)}</td><td>${(f.max_abs_shear_y_kn || 0).toFixed(1)}</td><td>${(f.max_abs_shear_z_kn || 0).toFixed(1)}</td><td>${(f.max_abs_moment_y_kn_m || 0).toFixed(1)}</td><td>${(f.max_abs_moment_z_kn_m || 0).toFixed(1)}</td><td>${(f.max_abs_torsion_kn_m || 0).toFixed(1)}</td></tr>`;
+      });
+      html += '</table></div><div class="rp-table"><table>';
+    }
     html += '<tr><th>Member</th><th>P_i</th><th>Vy_i</th><th>Vz_i</th><th>T_i</th><th>My_i</th><th>Mz_i</th><th>P_j</th><th>Vy_j</th><th>Vz_j</th><th>T_j</th><th>My_j</th><th>Mz_j</th></tr>';
     Object.entries(results.member_forces).forEach(([memberId, f]) => {
       // f is array of 12 elements
@@ -321,12 +372,165 @@ function renderReport(content, reportMarkdown) {
   content.appendChild(section);
 }
 
+const EXPORT_UNITS = {
+  max_translation_mm: 'mm',
+  max_displacement_mm: 'mm',
+  elevation_m: 'm',
+  height_m: 'm',
+  drift_mm: 'mm',
+  avg_ux_mm: 'mm',
+  avg_uy_mm: 'mm',
+  max_ux_mm: 'mm',
+  max_uy_mm: 'mm',
+  max_lateral_mm: 'mm',
+  Fx_kn: 'kN',
+  Fy_kn: 'kN',
+  Fz_kn: 'kN',
+  Mx_kn_m: 'kN-m',
+  My_kn_m: 'kN-m',
+  Mz_kn_m: 'kN-m',
+  max_abs_axial_kn: 'kN',
+  max_abs_shear_y_kn: 'kN',
+  max_abs_shear_z_kn: 'kN',
+  max_abs_torsion_kn_m: 'kN-m',
+  max_abs_moment_y_kn_m: 'kN-m',
+  max_abs_moment_z_kn_m: 'kN-m',
+};
+
+function exportValueUnit(path) {
+  const field = path.split('.').pop().replace(/\[\d+\]/g, '');
+  return EXPORT_UNITS[field] || '';
+}
+
+function flattenRows(value, path = 'results', rows = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => flattenRows(item, `${path}[${index}]`, rows));
+    return rows;
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value).forEach(([key, item]) => flattenRows(item, `${path}.${key}`, rows));
+    return rows;
+  }
+  rows.push(['results', path.replace(/^results\.?/, ''), value ?? '', exportValueUnit(path)]);
+  return rows;
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function buildCsvExport(analysis) {
+  const rows = [['Section', 'Item', 'Value', 'Unit'], ...flattenRows(analysis.results || {})];
+  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+function fmt(value, digits = 3) {
+  if (value === undefined || value === null) return 'N/A';
+  if (typeof value === 'number') return value.toFixed(digits);
+  return String(value);
+}
+
+function build3DReport(analysis) {
+  const results = analysis.results || {};
+  const lines = [
+    '# Preliminary 3D Frame Analysis Report',
+    '',
+    '## Request',
+    'Canvas-drawn 3D frame structure',
+    '',
+    '## Analysis Type',
+    '3D Space Frame Analysis',
+    '',
+    '## Assumptions',
+  ];
+  const assumptions = analysis.assumptions?.length ? analysis.assumptions : ['Preliminary elastic 3D analysis.', 'Rigid beam-column connections.'];
+  lines.push(...assumptions.map((item) => `- ${item}`));
+  const factors = results.load_factors || {};
+  const factorText = Object.entries(factors).map(([key, value]) => `${key}=${value}`).join(', ') || 'N/A';
+  lines.push(
+    '',
+    '## Model Summary',
+    `- Solver: ${results.solver || 'N/A'}`,
+    `- Number of nodes: ${fmt(results.num_nodes, 0)}`,
+    `- Number of members: ${fmt(results.num_members, 0)}`,
+    `- Active load combination: ${results.load_combination || 'N/A'}`,
+    `- Load factors: ${factorText}`,
+    `- Rigid diaphragms: ${results.rigid_diaphragms ? 'Yes' : 'No'}`,
+    `- Maximum translation: ${fmt(results.max_translation_mm, 4)} mm`,
+    '',
+  );
+
+  if (results.combination_results) {
+    lines.push('## Load Combination Summary', '| Combination | Max translation (mm) | Base Fx (kN) | Base Fy (kN) | Base Fz (kN) |', '|---|---:|---:|---:|---:|');
+    Object.entries(results.combination_results).forEach(([name, combo]) => {
+      const base = combo.base_reactions || {};
+      lines.push(`| ${name} | ${fmt(combo.max_translation_mm, 4)} | ${fmt(base.Fx_kn)} | ${fmt(base.Fy_kn)} | ${fmt(base.Fz_kn)} |`);
+    });
+    lines.push('');
+  }
+
+  if (results.base_reactions) {
+    const base = results.base_reactions;
+    lines.push('## Base Reactions', `- Fx: ${fmt(base.Fx_kn)} kN`, `- Fy: ${fmt(base.Fy_kn)} kN`, `- Fz: ${fmt(base.Fz_kn)} kN`, `- Mx: ${fmt(base.Mx_kn_m)} kN-m`, `- My: ${fmt(base.My_kn_m)} kN-m`, `- Mz: ${fmt(base.Mz_kn_m)} kN-m`, '');
+  }
+
+  const story = results.story_response || {};
+  if (story.levels?.length) {
+    lines.push('## Story Displacements', '| Elevation (m) | Avg Ux (mm) | Avg Uy (mm) | Max Ux (mm) | Max Uy (mm) | Max lateral (mm) |', '|---:|---:|---:|---:|---:|---:|');
+    story.levels.forEach((level) => lines.push(`| ${fmt(level.elevation_m, 2)} | ${fmt(level.avg_ux_mm, 4)} | ${fmt(level.avg_uy_mm, 4)} | ${fmt(level.max_ux_mm, 4)} | ${fmt(level.max_uy_mm, 4)} | ${fmt(level.max_lateral_mm, 4)} |`));
+    lines.push('');
+  }
+  if (story.story_drifts?.length) {
+    lines.push('## Story Drift Summary', '| Story | Height (m) | Drift (mm) | Drift ratio |', '|---|---:|---:|---:|');
+    story.story_drifts.forEach((drift) => {
+      const ratio = typeof drift.drift_ratio === 'number' ? `1/${drift.drift_ratio.toFixed(0)}` : 'N/A';
+      lines.push(`| ${fmt(drift.from_m, 2)}-${fmt(drift.to_m, 2)} | ${fmt(drift.height_m, 2)} | ${fmt(drift.drift_mm, 4)} | ${ratio} |`);
+    });
+    lines.push('');
+  }
+
+  if (results.member_force_summary) {
+    lines.push('## Member Force Envelopes', '| Member | Group | |P|max (kN) | |Vy|max (kN) | |Vz|max (kN) | |My|max (kN-m) | |Mz|max (kN-m) | |T|max (kN-m) |', '|---:|---|---:|---:|---:|---:|---:|---:|');
+    Object.entries(results.member_force_summary).forEach(([memberId, force]) => {
+      lines.push(`| ${memberId} | ${force.group || ''} | ${fmt(force.max_abs_axial_kn)} | ${fmt(force.max_abs_shear_y_kn)} | ${fmt(force.max_abs_shear_z_kn)} | ${fmt(force.max_abs_moment_y_kn_m)} | ${fmt(force.max_abs_moment_z_kn_m)} | ${fmt(force.max_abs_torsion_kn_m)} |`);
+    });
+    lines.push('');
+  }
+
+  if (results.reactions) {
+    lines.push('## Support Reactions');
+    Object.entries(results.reactions).forEach(([nodeId, reaction]) => {
+      lines.push(`- Node ${nodeId}: Fx=${fmt(reaction.Fx_kn)} kN, Fy=${fmt(reaction.Fy_kn)} kN, Fz=${fmt(reaction.Fz_kn)} kN, Mx=${fmt(reaction.Mx_kn_m)} kN-m, My=${fmt(reaction.My_kn_m)} kN-m, Mz=${fmt(reaction.Mz_kn_m)} kN-m`);
+    });
+    lines.push('');
+  }
+
+  if (results.displacements) {
+    lines.push('## Nodal Displacements', '| Node | Ux (mm) | Uy (mm) | Uz (mm) | Rx (rad) | Ry (rad) | Rz (rad) |', '|---:|---:|---:|---:|---:|---:|---:|');
+    Object.entries(results.displacements).forEach(([nodeId, displacement]) => {
+      const values = [...displacement, 0, 0, 0, 0, 0, 0];
+      lines.push(`| ${nodeId} | ${fmt(values[0], 4)} | ${fmt(values[1], 4)} | ${fmt(values[2], 4)} | ${fmt(values[3], 6)} | ${fmt(values[4], 6)} | ${fmt(values[5], 6)} |`);
+    });
+    lines.push('');
+  }
+
+  const warnings = analysis.warnings?.length ? analysis.warnings : ['None'];
+  lines.push('## Warnings', ...warnings.map((item) => `- ${item}`), '', '## Engineering Note', 'This is a preliminary linear elastic 3D frame analysis. A licensed engineer should review load cases, diaphragm assumptions, member releases, second-order effects, code combinations, member design, connection details, and model calibration against ETABS or another validated solver.');
+  return lines.join('\n');
+}
+
+function buildReportExport(analysis) {
+  const stale = !analysis.report_markdown || /Beam Analysis|Span: None/.test(analysis.report_markdown);
+  const report = analysis.analysis_type === '3d_frame' && stale ? build3DReport(analysis) : analysis.report_markdown;
+  return `${(report || '').trim()}\n\n## Detailed Analysis Data\n\n\`\`\`json\n${JSON.stringify(analysis.results || {}, null, 2)}\n\`\`\`\n`;
+}
+
 export function initExports() {
   byId('exportCsvBtn').addEventListener('click', async () => {
     if (!S._lastExport) return;
     try {
-      const response = await exportCsv(S._lastExport.results);
-      downloadBlob(await response.blob(), 'results.csv');
+      downloadBlob(new Blob([buildCsvExport(S._lastExport)], { type: 'text/csv' }), 'results.csv');
     } catch (error) {
       alert('Export failed');
     }
@@ -335,8 +539,7 @@ export function initExports() {
   byId('exportMdBtn').addEventListener('click', async () => {
     if (!S._lastExport) return;
     try {
-      const response = await exportReport(S._lastExport.report_markdown);
-      downloadBlob(await response.blob(), 'report.md');
+      downloadBlob(new Blob([buildReportExport(S._lastExport)], { type: 'text/markdown' }), 'report.md');
     } catch (error) {
       alert('Export failed');
     }

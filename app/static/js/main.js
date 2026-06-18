@@ -98,6 +98,9 @@ function loadProjectIntoState(proj) {
   S.slabs = proj.slabs || [];
   S.loads = proj.loads || [];
   S.memberLoads = proj.memberLoads || [];
+  S.loadCombinations = proj.loadCombinations || S.loadCombinations;
+  S.activeLoadCombination = proj.activeLoadCombination || S.activeLoadCombination;
+  S.rigidDiaphragms = proj.rigidDiaphragms !== undefined ? proj.rigidDiaphragms : S.rigidDiaphragms;
   S.nextNodeId = proj.nextNodeId || 1;
   S.nextMemberId = proj.nextMemberId || 1;
   S.nextSlabId = proj.nextSlabId || 1;
@@ -107,6 +110,10 @@ function loadProjectIntoState(proj) {
   canvas3d.levels = proj.levels || [];
 
   if (proj.analysisType) byId('analysisType').value = proj.analysisType;
+  const comboSelect = byId('loadComboSelect');
+  if (comboSelect) comboSelect.value = S.activeLoadCombination;
+  const diaphragmToggle = byId('rigidDiaphragmToggle');
+  if (diaphragmToggle) diaphragmToggle.checked = S.rigidDiaphragms !== false;
   byId('projectName').textContent = proj.name;
 }
 
@@ -244,6 +251,9 @@ function initSetupPage() {
     currentProject.slabs = [...S.slabs];
     currentProject.loads = [...S.loads];
     currentProject.memberLoads = [...S.memberLoads];
+    currentProject.loadCombinations = [...S.loadCombinations];
+    currentProject.activeLoadCombination = S.activeLoadCombination;
+    currentProject.rigidDiaphragms = S.rigidDiaphragms;
     currentProject.nextNodeId = S.nextNodeId;
     currentProject.nextMemberId = S.nextMemberId;
     currentProject.nextSlabId = S.nextSlabId;
