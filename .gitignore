@@ -25,6 +25,9 @@ reports/
 # Logs
 *.log
 
+# Graphify output (auto-generated knowledge graph artifacts)
+graphify-out/
+
 # OS files
 .DS_Store
 Thumbs.db

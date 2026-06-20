@@ -6,6 +6,18 @@ This software is intended for research, education, experimentation, and early-st
 
 ---
 
+## Screenshots
+
+| Dashboard | Chat Agent |
+|---|---|
+| ![Main dashboard](demo_images/main_dashboard.jpg) | ![Chat agent](demo_images/chat_agent.jpg) |
+| **3D Modeling Canvas** | **After Analysis** |
+| ![Modeling window](demo_images/modeling_window.jpg) | ![Analysis results](demo_images/after_analysis.jpg) |
+| **Modeled Building** |
+| ![Modeled building](demo_images/modeled_building.jpg) |
+
+---
+
 ## Features
 
 ### Conversational AI Agent

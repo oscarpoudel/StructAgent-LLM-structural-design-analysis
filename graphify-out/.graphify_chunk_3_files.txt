@@ -1,8 +1,0 @@
-C:\Users\oscar poudel\Projects\struct_analysis\README.md
-C:\Users\oscar poudel\Projects\struct_analysis\app\static\index.html
-C:\Users\oscar poudel\Projects\struct_analysis\docs\API.md
-C:\Users\oscar poudel\Projects\struct_analysis\docs\ARCHITECTURE.md
-C:\Users\oscar poudel\Projects\struct_analysis\docs\BACKEND.md
-C:\Users\oscar poudel\Projects\struct_analysis\docs\FRONTEND.md
-C:\Users\oscar poudel\Projects\struct_analysis\docs\SETUP.md
-C:\Users\oscar poudel\Projects\struct_analysis\docs\TOOLS.md
