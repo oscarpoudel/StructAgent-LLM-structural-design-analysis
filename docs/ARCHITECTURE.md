@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-**StructAgent** is a Flask-based structural analysis assistant that combines multi-agent LLM workflows with deterministic engineering solvers (closed-form equations and OpenSeesPy FEM). It provides a web UI for conversational structural analysis, interactive 3D canvas drawing, and automated engineering reports.
+**StructAgent** is a Flask-based structural analysis assistant that combines multi-agent LLM workflows with deterministic engineering solvers (closed-form equations and OpenSeesPy FEM). It provides a web UI for conversational structural analysis, interactive 3D canvas drawing, context-aware chat, project persistence, and automated engineering reports.
 
 **Scope:** Preliminary elastic analysis only. Not for licensed professional design.
 
@@ -12,82 +12,134 @@
 
 The application follows a layered architecture with clear separation between frontend, backend routing, agent orchestration, and deterministic solvers.
 
-`
-+------------------------------------------------------------------+
-|                        Frontend (Vanilla JS)                      |
-|  +----------+  +----------+  +----------+  +----------+          |
-|  |  Chat    |  |  3D      |  | Results  |  | Sections |          |
-|  |  Tab     |  |  Canvas  |  | Tab      |  | Tab      |          |
-|  +----+-----+  +----+-----+  +----+-----+  +----+-----+          |
-|       |              |              |              |               |
-|  +----+--------------+--------------+--------------+-----+        |
-|  |              State Manager (state.js)                         |
-|  +---------------------------------------------------------------+
-+-----------------------------+-------------------------------------+
+```
++---------------------------------------------------------------------+
+|                        Frontend (Vanilla JS)                         |
+|  +----------+  +----------+  +----------+  +----------+             |
+|  |  Chat    |  |  3D      |  | Results  |  | Sections |             |
+|  |  (chat)  |  |  Canvas  |  | (results)|  | (search) |             |
+|  +----+-----+  +----+-----+  +----+-----+  +----+-----+             |
+|       |              |              |              |                 |
+|  +----+--------------+--------------+--------------+-----+          |
+|  |         State Manager (state.js -> S object)                    |
+|  +---------------------------------------------------------------+ |
+|  |  Modules: analysis.js, main.js, projects.js, api.js, dom.js   | |
+|  |  canvas3d/{index,scene,render,interaction,ui}.js              | |
+|  +---------------------------------------------------------------+ |
++----------------------------+----------------------------------------+
                               | HTTP/JSON
-+-----------------------------+-------------------------------------+
-|                      Backend (Flask)                               |
-|  +-------------+  +-------------+  +----------------------------+ |
-|  |  Routes     |  | Agent System|  |  Engineering Tools         | |
-|  |  (main.py) |-| (agents.py)  |  |  (tools/*.py)              | |
-|  +-----+------+  +------+------|  +----------------------------+ |
-|        |               |                                            |
-|  +-----+------+  +-----+------+  +----------------------------+  |
-|  | SQLite DB  |  | LLM Client  |  | Section Database           |  |
-|  | (history)  |  | (llm.py)    |  | (sections.py)              |  |
-|  +------------+  +-------------+  +----------------------------+  |
-+-------------------------------------------------------------------+
-`
++----------------------------+----------------------------------------+
+|                      Backend (Flask)                                 |
+|  +------------------+  +------------------+  +--------------------+ |
+|  |  Routes          |  | Agent System     |  | Engineering Tools  | |
+|  |  - pages.py      |  | (agents.py)      |  | (tools/*.py)       | |
+|  |  - analyze.py    |  |  - Context       |  | - beam             | |
+|  |  - projects.py   |  |    summarizer    |  | - opensees_beam    | |
+|  |  - history.py    |  |  - Canvas tool   |  | - truss            | |
+|  |  - sections.py   |  |    router (8+)   |  | - frame            | |
+|  +--------+---------+  +--------+---------+  | - column           | |
+|           |                      |            | - opensees_3d      | |
+|  +--------+---------+  +--------+---------+  | - sections         | |
+|  | SQLite Databases  |  | LLM Clients     |  | - report           | |
+|  | - analysis_history|  | (llm.py)        |  | - load_combinations| |
+|  | - projects.db     |  | Ollama/OllamaAI |  +--------------------+ |
+|  +------------------+  +-----------------+                          |
+|  +------------------+                                                |
+|  | logging_config.py|                                                |
+|  +------------------+                                                |
++---------------------------------------------------------------------+
+```
 
 ## Component Map
 
 | Layer | File(s) | Responsibility |
 |-------|---------|----------------|
-| **Entry** | pp/main.py | Flask app, routes, SQLite history, agent initialization |
-| **Agents** | pp/agents.py | Multi-agent routing, intent detection, analysis pipelines |
-| **Models** | pp/models.py | Pydantic schemas for all inputs/outputs |
-| **LLM** | pp/llm.py | Ollama, PydanticAI, and disabled LLM clients |
-| **Config** | pp/config.py | PydanticSettings from .env |
-| **Beam Solver** | pp/tools/beam.py | Closed-form beam analysis (4 support types) |
-| **Beam FEM** | pp/tools/opensees_beam.py | OpenSeesPy beam with cross-validation |
-| **Truss** | pp/tools/truss.py | OpenSeesPy truss + direct stiffness fallback |
-| **Frame** | pp/tools/frame.py | OpenSeesPy frame + direct stiffness fallback |
-| **Column** | pp/tools/column.py | Euler buckling + AISC Chapter E |
-| **3D Frame** | pp/tools/opensees_3d.py | OpenSeesPy 3D (ndm=3, ndf=6) |
-| **Reports** | pp/tools/report.py | Markdown engineering report formatter |
-| **Sections** | pp/tools/sections.py | AISC W-shape, HSS, Angle database |
-| **Frontend** | pp/static/ | HTML, CSS, vanilla JS |
+| **Entry** | `app/main.py` | Flask app factory, DB schema, blueprint wiring, LLM status check |
+| **Routes** | `app/routes/pages.py` | `GET /`, `GET /health` |
+| **Routes** | `app/routes/analyze.py` | `POST /api/analyze`, `POST /api/chat`, `POST /api/chat/evaluate`, `POST /api/analyze/structure`, `GET /api/llm-status` |
+| **Routes** | `app/routes/projects.py` | `CRUD /api/projects` (SQLite-backed project persistence) |
+| **Routes** | `app/routes/history.py` | `GET /api/history`, `GET /api/history/<id>`, `POST /api/export/csv\|report` |
+| **Routes** | `app/routes/sections.py` | `GET /api/sections`, `GET /api/sections/<name>` |
+| **Agents** | `app/agents.py` | Multi-agent orchestration, context summarizer, intent detection, canvas tool router |
+| **Models** | `app/models.py` | Pydantic schemas for all inputs/outputs |
+| **LLM** | `app/llm.py` | Ollama, OllamaAI (OpenAI-compatible), and disabled LLM clients |
+| **Config** | `app/config.py` | PydanticSettings from .env |
+| **Logging** | `app/logging_config.py` | Structured logging setup |
+| **Beam Solver** | `app/tools/beam.py` | Closed-form beam analysis (4 support types) |
+| **Beam FEM** | `app/tools/opensees_beam.py` | OpenSeesPy beam with cross-validation |
+| **Truss** | `app/tools/truss.py` | OpenSeesPy truss + direct stiffness fallback |
+| **Frame** | `app/tools/frame.py` | OpenSeesPy frame + direct stiffness fallback |
+| **Column** | `app/tools/column.py` | Euler buckling + AISC Chapter E |
+| **3D Frame** | `app/tools/opensees_3d.py` | OpenSeesPy 3D (ndm=3, ndf=6) |
+| **Load Combos** | `app/tools/load_combinations.py` | ASCE 7 load combination generator |
+| **Reports** | `app/tools/report.py` | Markdown engineering report formatter |
+| **Sections** | `app/tools/sections.py` | AISC W-shape, HSS, Angle database |
+| **Frontend** | `app/static/` | HTML, CSS, vanilla JS modules |
+| **Scripts** | `scripts/debug_chat.py` | CLI debug tool for testing chat/analysis |
 
 ## Data Flow
 
 ### Analysis Request Flow
-1. User types prompt in chat or analysis tab
-2. Frontend sends POST /api/chat or POST /api/analyze
-3. main.py validates request with Pydantic schemas
-4. gents.py detects analysis type (beam/truss/frame/column/3d)
-5. Intent agent extracts parameters from natural language
-6. Planning agent selects solver
-7. Input extraction converts text to structured Pydantic models
-8. Solver tool runs (OpenSeesPy or closed-form)
+1. User types prompt in chat or uses quick-prompt buttons
+2. Frontend sends `POST /api/chat` with message + optional model/analysis context
+3. `analyze.py` validates request with Pydantic schemas
+4. If a canvas model exists and question is context-related, context summarizer extracts floor levels, dimensions, member groups, load combo
+5. `agents.py` routes through intent → planning → execution (or canvas tool, or conversation)
+6. Intent agent extracts parameters from natural language
+7. Planning agent selects solver
+8. Solver tool runs (OpenSeesPy or closed-form) with fallback chain
 9. Critic agent validates results
 10. Report formatter generates markdown
 11. Results saved to SQLite history
-12. Response returned to frontend
+12. Response returned to frontend with analysis data and diagrams
 
-### Canvas Drawing Flow
-1. User draws structure on 3D canvas (Three.js)
-2. State manager tracks nodes, members, supports, loads
-3. User clicks Analyze or types analysis command
-4. Frontend sends POST /api/analyze/structure with model data
-5. Backend validates with TrussInputs or FrameInputs
-6. Solver runs directly on canvas model
-7. Results displayed in results tab
+### Context-Aware Chat Flow
+1. User has a 3D structure on canvas (with model data in frontend state)
+2. User asks "What is the maximum moment on this frame?"
+3. Frontend sends `POST /api/chat` with `message` + `model` + `results` + `context`
+4. `_is_context_question()` detects context keywords (moment, stress, floor, story, deflection, etc.)
+5. `_has_real_context()` validates that the context is non-trivial
+6. `_summarize_canvas_context()` extracts floor levels from Z-coordinates, building X/Y dimensions, member group counts, active load combo, rigid diaphragm status
+7. LLM receives the summarized context + user question and answers based on it
+8. If the user asks for an analysis change, the canvas action router decides which action to take
+
+### Canvas Tool Routing Flow
+1. User message is classified as needing a canvas action
+2. `CanvasRouterAgent` selects from available actions:
+   - `clear_analysis` - Clear analysis results
+   - `draw_3d_frame_template` - Draw a 3D frame template
+   - `apply_member_group_sections` - Apply steel sections to member groups
+   - `set_rigid_diaphragm` - Toggle rigid diaphragm
+   - `set_load_combination` - Set active load combination
+   - `clear_canvas` - Clear entire canvas
+   - `draw_simple_beam` - Draw a simple beam
+   - `run_current_analysis` - Run analysis on current model
+3. Action is validated and returned as `canvas_action` in response
+
+### Project Persistence Flow
+1. On page load, frontend fetches existing projects via `GET /api/projects`
+2. Autosave timer (2s debounce) + beforeunload event save model/results to server
+3. `PUT /api/projects/<id>` sends model snapshot and analysis results
+4. New IndexedDB projects auto-migrate to server database on first load
+5. Projects are cross-browser via server SQLite
+
+### LLM Status Check Flow
+1. On page load + every 30s, frontend calls `GET /api/llm-status`
+2. Backend pings Ollama `/api/tags` to check reachability
+3. Green dot = LLM reachable, yellow = checking, red = offline
+4. Chat header shows current status; LLM-unavailable routes return 503
 
 ## Key Design Decisions
 
 1. **Deterministic-first:** Solvers use closed-form equations and FEM, not LLM-generated numbers
 2. **LLM for routing only:** LLM handles intent detection, parameter extraction, and conversation
-3. **Fallback chains:** OpenSeesPy -> direct stiffness -> closed-form, ensuring analysis always runs
-4. **Pydantic validation:** All inputs validated before reaching solvers
-5. **SQLite history:** All analyses persisted for traceability
-6. **Canvas integration:** Drawing produces analyzable models, bridging visual and computational workflows
+3. **Context-aware LLM:** Chat responses include summarized building model data (floors, dimensions, member groups) so the agent can answer questions about the current structure
+4. **Canvas tool router:** Specialized agent for converting chat messages into modeling/analysis actions on the 3D canvas
+5. **Fallback chains:** OpenSeesPy -> direct stiffness -> closed-form, ensuring analysis always runs
+6. **Pydantic validation:** All inputs validated before reaching solvers
+7. **SQLite history:** All analyses persisted for traceability
+8. **Server-backed projects:** Projects stored in server SQLite for cross-browser continuity
+9. **Autosave:** Automatic project save (2s debounce + beforeunload) prevents data loss
+10. **Canvas integration:** Drawing produces analyzable models, bridging visual and computational workflows
+11. **Lightweight LLM health check:** Simple ping endpoint avoids expensive model loading for status monitoring
+12. **Quick-prompt buttons:** Replace example dropdown for faster access to common analysis starters

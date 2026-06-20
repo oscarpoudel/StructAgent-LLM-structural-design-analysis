@@ -1,33 +1,77 @@
 # Frontend Documentation
 
+## File Structure
+
+```
+app/static/
+├── index.html           # Single-page application shell
+├── styles.css           # Complete design system (theming, layout, components)
+└── js/
+    ├── chat.js          # Chat message handling, LLM status polling, quick-prompt buttons, Clear chat
+    ├── analysis.js      # Model payload builder, template generators, analysis results handler
+    ├── main.js          # Application controller, autosave, initialization, event wiring
+    ├── projects.js      # Server-backed project CRUD with IndexedDB migration
+    ├── sections.js      # Steel section search UI
+    ├── history.js       # Analysis history viewer
+    ├── tabs.js          # Tab manager for panel switching
+    ├── shortcuts.js     # Keyboard shortcuts
+    ├── state.js         # Central state store (S object)
+    ├── theme.js         # Dark/light theme management
+    ├── results.js       # Results rendering and display
+    ├── modals.js        # Modal dialog management
+    ├── dom.js           # DOM helper utilities
+    ├── api.js           # HTTP fetch wrapper for all API calls
+    └── canvas3d/
+        ├── index.js     # Canvas3D namespace and coordination
+        ├── scene.js     # Three.js scene, camera, lights, grid
+        ├── render.js    # WebGL renderer and animation loop
+        ├── interaction.js  # Orbit controls, click/hover, grid snapping
+        └── ui.js        # Canvas UI controls (toolbar, panels)
+```
+
 ## app/static/index.html - Application Shell
 
 Single-page application entry point. Loads all CSS and JavaScript modules:
 
 - **Libraries**: Three.js (r128), Plotly.js (2.35.0), KaTeX (0.16.9), marked (9.1.6), Font Awesome (6.5.1)
-- **Styles**: css/styles.css (main), css/animations.css (transitions), css/print.css (print layout), css/dark-theme.css (dark mode), css/light-theme.css (light mode)
-- **Scripts**: js/state.js, js/theme.js, js/canvas3d.js, js/canvas2d.js, js/modals.js, js/results.js, js/diagrams.js, js/app.js
+- **Styles**: `styles.css` (single combined stylesheet)
+- **Scripts**: All JS modules loaded in dependency order at bottom of `<body>`
 
 ### Layout Structure
 
-- **Header** (#app-header): Logo, title, theme toggle, help/about buttons, 3D view toggle
-- **Main content** (#main-content): Two-panel layout
-  - **Left panel** (#left-panel): Chat interface with message history, input area, and send button
-  - **Right panel** (#right-panel): 3D canvas, 2D canvas, results panel, and tabs for switching views
+- **Header** (`#app-header`): Logo, title, LLM status indicator (green/yellow/red dot), theme toggle, help/about buttons, 3D view toggle, "Developed by Oscar" credit link
+- **Main content** (`#main-content`): Two-panel layout
+  - **Left panel** (`#left-panel`): Chat interface with message history, quick-prompt buttons (3D Frame, Beam, Column, 2D Frame), Clear chat button, input textarea, and send button
+  - **Right panel** (`#right-panel`): 3D canvas, 2D canvas, results panel, and tabs for switching views
 - **Modals**: Help modal, about modal, results modal, section search modal, history modal, export modal
-- **Toast notifications**: #toast-container for success/error/info messages
+- **Toast notifications**: `#toast-container` for success/error/info messages
 
-## app/static/css/styles.css - Main Stylesheet
+### LLM Status Indicator
 
-Complete design system with CSS custom properties for theming:
+- Green dot: LLM provider reachable
+- Yellow dot: Checking / loading
+- Red dot: LLM provider offline
+- Polls `GET /api/llm-status` every 30 seconds
+
+### Quick-Prompt Buttons
+
+Replaced the example `<select>` dropdown with labeled buttons:
+- **3D Frame** - `drawThreeByThreeThreeStoryFrame()`
+- **Beam** - "Analyze a simply supported beam..."
+- **Column** - "Analyze a steel column..."
+- **2D Frame** - "Analyze a 2D portal frame..."
+- **Clear** - Empties chat history and clears analysis results
+
+## app/static/styles.css - Main Stylesheet
+
+Complete design system with CSS custom properties for theming. Single file (no separate css/ directory). Includes dark and light theme via `.dark-theme` / `.light-theme` classes on `<html>`.
 
 ### Color Variables
 
-- **Primary palette**: --primary-50 through --primary-900 (blue tones)
-- **Secondary palette**: --secondary-50 through --secondary-900 (indigo tones)
-- **Accent palette**: --accent-50 through --accent-900 (teal tones)
-- **Status colors**: --success-*, --warning-*, --danger-*, --info-*
-- **Neutral colors**: --neutral-50 through --neutral-950
+- **Primary palette**: `--primary-50` through `--primary-900` (blue tones)
+- **Secondary palette**: `--secondary-50` through `--secondary-900` (indigo tones)
+- **Status colors**: `--success-*`, `--warning-*`, `--danger-*`, `--info-*`
+- **Neutral colors**: `--neutral-50` through `--neutral-950`
 
 ### Layout
 
@@ -40,260 +84,185 @@ Complete design system with CSS custom properties for theming:
 ### Components
 
 - **Message bubbles**: AI messages (left-aligned, gradient border), user messages (right-aligned, primary color)
-- **Buttons**: Primary, secondary, ghost variants with hover/active states
-- **Input fields**: Styled textareas with focus rings and character counters
+- **Buttons**: Primary, secondary, ghost, quick-prompt variants
+- **Input fields**: Styled textareas with placeholder text (no default value)
 - **Tabs**: Horizontal tab bar with active indicator
 - **Cards**: Elevated cards with shadows and rounded corners
-- **Badges**: Small status indicators for analysis type, warnings
-- **Loading states**: Spinners, skeleton loaders, progress bars
+- **Loading states**: Spinners, skeleton loaders
 - **Toast notifications**: Slide-in notifications with auto-dismiss
-
-## app/static/css/animations.css - Animation Definitions
-
-CSS keyframe animations for UI transitions:
-
-- adeIn: Opacity transition for message appearance
-- slideUp: Vertical slide for panel transitions
-- slideInRight: Horizontal slide for toast notifications
-- pulse: Pulsing animation for loading states
-- ounce: Bounce effect for button interactions
-- shake: Shake animation for error states
-- loat: Subtle floating animation for decorative elements
-- glow: Glow effect for active elements
-- scaleIn: Scale transition for modal appearance
-- progressBar: Animated progress bar fill
-
-## app/static/css/dark-theme.css - Dark Mode Overrides
-
-Dark theme CSS custom property overrides:
-
-- Background: #1a1a2e (deep navy)
-- Surface: #16213e (dark blue)
-- Text: #e0e0e0 (light gray)
-- Primary accent: #4fc3f7 (light blue)
-- Border: #2d3748 (dark gray)
-
-## app/static/css/light-theme.css - Light Mode Overrides
-
-Light theme CSS custom property overrides:
-
-- Background: #ffffff (white)
-- Surface: #f7fafc (light gray)
-- Text: #2d3748 (dark gray)
-- Primary accent: #3182ce (blue)
-- Border: #e2e8f0 (light gray)
-
-## app/static/css/print.css - Print Styles
-
-Print-specific styles for report export:
-
-- Removes all interactive elements (buttons, inputs, chat interface)
-- Forces light theme colors for print readability
-- Shows only results panel content
-- Adds page break controls for multi-page reports
-- Hides canvas elements, shows only diagram images
+- **LLM dot**: `.llm-dot` - Small colored circle for LLM status
+- **Quick-prompt buttons**: `.qp-btn` - Labeled action buttons in chat input area
+- **Clear chat**: `.clear-chat-btn` - Removes all messages and results
+- **Credit**: `.credit` - "Developed by Oscar" footer link
 
 ## app/static/js/state.js - Application State Management
 
-Central state store for the frontend application:
+Central state store (`S` object, not `AppState`):
 
-### State Object
-
-`javascript
-const AppState = {
+```javascript
+const S = {
   // Analysis state
   currentAnalysis: null,
   analysisHistory: [],
   selectedResults: null,
-  
+
   // Canvas state
-  canvas2D: { nodes: [], members: [], loads: [] },
-  canvas3D: { nodes: [], members: [], loads: [] },
-  
+  canvas3D: { nodes: [], members: [], loads: [], supports: [] },
+  model: null,
+
   // UI state
   activeTab: 'results',
   theme: 'dark',
-  isDrawing: false,
   selectedNode: null,
   selectedMember: null,
-  
+
   // Chat state
   conversationHistory: [],
   isTyping: false,
-  
+
+  // Project state
+  currentProject: null,
+  projects: [],
+  autosaveTimer: null,
+
+  // LLM status
+  llmAvailable: false,
+  llmChecking: true,
+
   // Modal state
   activeModal: null,
   modalData: null
 };
-`
+```
 
-### Methods
+## app/static/js/chat.js - Chat Module
 
-- setState(key, value): Update state with change notification
-- getState(): Get current state snapshot
-- esetState(): Clear all state to initial values
-- subscribe(callback): Register listener for state changes
-- exportState(): Serialize state for export/debugging
+Handles all chat-related functionality:
+
+- `sendChatMessage()` - POST to `/api/chat`, handle response
+- `displayUserMessage()` - Add user message to chat
+- `displayAIMessage()` - Parse and display AI response with formatting
+- `handleCanvasAction()` - Execute canvas tool action from AI
+- `updateLLMStatus()` - Poll `GET /api/llm-status` and update indicator
+- `setupQuickPromptButtons()` - Wire 3D Frame, Beam, Column, 2D Frame buttons
+- `clearChat()` - Remove all messages and analysis results
+
+## app/static/js/analysis.js - Analysis Module
+
+Handles model building and analysis:
+
+- `getModelPayload()` - Build structure model from canvas state
+- `clearAnalysisResults()` - Remove result overlays from canvas
+- `drawThreeByThreeThreeStoryFrame()` - Generate 3D frame template data
+- `applyMemberGroupSections()` - Apply section properties to member groups
+- `runAnalysis()` - POST to `/api/analyze` with model data
+
+## app/static/js/main.js - Main Controller
+
+Central controller that wires all components:
+
+- `init()` - Boot sequence: load projects, init canvases, setup events
+- `setupEventListeners()` - Register all DOM event handlers
+- `autosave()` - Save project every 2s (debounced) + on beforeunload
+- `saveProjectSnapshot()` - Capture current model/results state
+
+## app/static/js/projects.js - Projects Module
+
+Server-backed project persistence with IndexedDB migration:
+
+- `loadProjects()` - Fetch projects from `GET /api/projects`
+- `createProject(name)` - Create new project via `POST /api/projects`
+- `saveProject(id, data)` - Update project via `PUT /api/projects/<id>`
+- `deleteProject(id)` - Delete project via `DELETE /api/projects/<id>`
+- `migrateFromIndexedDB()` - On first load, copy old IndexedDB projects to server
+- `autosave()` - Debounced save on model/results changes
+
+## app/static/js/api.js - API Module
+
+HTTP fetch wrapper for all backend API calls. Provides consistent error handling and JSON parsing.
+
+## app/static/js/dom.js - DOM Utilities
+
+Helper functions for DOM manipulation: element creation, class toggling, event delegation.
+
+## app/static/js/sections.js - Section Search
+
+UI for searching AISC steel sections:
+- Search input with live filtering
+- Results table with section properties
+- Click to select section for member assignment
+
+## app/static/js/history.js - History Viewer
+
+UI for browsing analysis history:
+- Paginated list of past analyses
+- Click to view full results
+- Delete individual records
+
+## app/static/js/tabs.js - Tab Manager
+
+Manages the right-panel tab switching between 3D canvas, 2D canvas, and results view.
+
+## app/static/js/shortcuts.js - Keyboard Shortcuts
+
+Keyboard bindings for common actions:
+- `Ctrl+Enter` - Send chat message
+- `Escape` - Close modals
+- Other navigation shortcuts
 
 ## app/static/js/theme.js - Theme Management
 
 Handles theme switching between dark and light modes:
-
-- initTheme(): Load saved theme preference from localStorage
-- 	oggleTheme(): Switch between dark/light themes
-- pplyTheme(theme): Apply CSS classes and update all components
-- saveTheme(theme): Persist theme preference to localStorage
-
-## app/static/js/canvas3d.js - Three.js 3D Canvas
-
-3D structure visualization using Three.js:
-
-### Scene Setup
-
-- Perspective camera with orbit controls
-- Grid helper and axis helper
-- Ambient + directional lighting
-- Antialiased WebGL renderer
-
-### Drawing Functions
-
-- drawNode(node): Creates sphere geometry at node position
-- drawMember(member): Creates cylinder geometry between nodes
-- drawLoad(load): Creates arrow helper for load vectors
-- drawSupport(support): Creates cone/box geometry for support types
-- drawResults(results): Renders deflected shape with color coding
-
-### Interaction
-
-- Orbit, zoom, pan via mouse controls
-- Click selection for nodes/members
-- Hover tooltips with element properties
-- Grid snapping for node placement (configurable)
-
-### Export
-
-- exportScene(): Export current view as PNG
-- exportGLTF(): Export scene as GLTF model
-
-## app/static/js/canvas2d.js - 2D Drawing Canvas
-
-HTML5 Canvas-based 2D structure drawing:
-
-### Canvas Setup
-
-- Responsive canvas with device pixel ratio scaling
-- Grid overlay with configurable snap
-- Ruler display along edges
-
-### Drawing Tools
-
-- drawNode(node): Circle with node ID label
-- drawMember(member): Line with member properties tooltip
-- drawLoad(load): Arrow with magnitude label
-- drawSupport(support): Triangle (pin), circle (roller), box (fixed)
-- drawSFD(shearData): Shear force diagram below structure
-- drawBMD(momentData): Bending moment diagram below structure
-- drawDeflection(deflData): Deflected shape overlay
-
-### Interaction
-
-- Click to add nodes with grid snap
-- Shift+click to add members between nodes
-- Right-click for context menu (delete, properties)
-- Drag to move nodes
-- Scroll to zoom, middle-click to pan
-
-### Analysis Integration
-
-- sendToAnalysis(): Package canvas state and POST to /api/analyze/structure
-- enderResults(results): Draw SFD, BMD, and deflection from analysis response
-
-## app/static/js/modals.js - Modal Management
-
-Handles all modal dialogs:
-
-### Modals
-
-- **Help Modal**: Usage instructions, keyboard shortcuts, examples
-- **About Modal**: Version info, safety disclaimer, license
-- **Results Modal**: Full analysis results with export options
-- **Section Search Modal**: Searchable steel section database
-- **History Modal**: Analysis history with load/delete options
-- **Export Modal**: CSV/Markdown report export options
-
-### Methods
-
-- openModal(type, data): Open specified modal with data
-- closeModal(): Close active modal
-- updateModal(type, data): Update modal content without closing
+- `initTheme()` - Load saved theme from localStorage
+- `toggleTheme()` - Switch between dark/light themes
+- `applyTheme(theme)` - Update CSS classes and persist
 
 ## app/static/js/results.js - Results Rendering
 
 Formats and displays analysis results:
+- `renderResultsPanel(results)` - Populate results tab
+- `formatValue(value, unit)` - Format numbers with units
+- `renderWarnings(warnings)` - Display warning badges
+- `renderAssumptions(assumptions)` - List analysis assumptions
+- `renderAgentTraces(traces)` - Show agent pipeline trace
 
-### Display Functions
+## app/static/js/modals.js - Modal Management
 
-- enderResultsPanel(results): Populate results panel with formatted data
-- ormatValue(value, unit): Format numbers with proper units and significant figures
-- enderWarnings(warnings): Display warning badges with severity colors
-- enderAssumptions(assumptions): List analysis assumptions
-- enderAgentTraces(traces): Show agent pipeline execution trace
+Manages all modal dialogs: Help, About, Results, Section Search, History, Export.
 
-### Export Functions
+## app/static/js/canvas3d/ - 3D Canvas Module
 
-- exportCSV(results): Generate CSV from results data
-- exportMarkdown(results): Generate markdown report
-- copyToClipboard(text): Copy results to clipboard
+Modular Three.js-based 3D canvas system:
 
-## app/static/js/diagrams.js - Plotly Diagram Rendering
+- **index.js**: Namespace and coordination, exports `Canvas3D` global
+- **scene.js**: Scene setup, camera (perspective), lights (ambient + directional), grid, axes
+- **render.js**: WebGL renderer, animation loop, resize handling
+- **interaction.js**: OrbitControls, raycasting for click selection, hover tooltips, grid snapping
+- **ui.js**: Canvas toolbar buttons, panel controls, view toggles
 
-Creates interactive 2D diagrams using Plotly.js:
+### 3D Scene Features
 
-### Diagram Types
+- Perspective camera with orbit controls (rotate, pan, zoom)
+- Grid helper and axis helper
+- Ambient + directional lighting with shadows
+- Antialiased WebGL renderer
+- Node spheres with color coding, member cylinders, load arrows, support indicators
+- Deflected shape overlay with color-coded displacement
+- Click selection for nodes/members with info display
+- Export scene as PNG
 
-- createSFD(shearData): Shear force diagram with area fill
-- createBMD(momentData): Bending moment diagram with area fill
-- createDeflectionDiagram(deflData): Deflection curve with scale indicator
-- createInteractionDiagram(results): P-M interaction diagram for columns
-- createStressDiagram(results): Stress distribution visualization
+## Autosave
 
-### Configuration
+The application automatically saves project state:
 
-- Plotly dark theme matching application theme
-- Responsive sizing with auto-layout
-- Hover tooltips with exact values
-- Zoom and pan enabled
-- Export to PNG built-in
+- **Trigger**: Model change, analysis results change, beforeunload
+- **Interval**: 2-second debounce on continuous edits
+- **Target**: Server via `PUT /api/projects/<id>`
+- **Fallback**: First-time IndexedDB migration on initial load
 
-## app/static/js/app.js - Main Application Controller
+## LLM Status Polling
 
-Central controller that wires all components together:
-
-### Initialization
-
-- init(): Boot sequence - load theme, init canvases, setup event listeners
-- setupEventListeners(): Register all DOM event handlers
-- loadSavedState(): Restore session from localStorage
-
-### API Communication
-
-- sendChatMessage(message): POST to /api/chat, handle response
-- sendAnalysisRequest(prompt): POST to /api/analyze, handle response
-- sendCanvasAnalysis(canvasData): POST to /api/analyze/structure
-- etchSections(query): GET from /api/sections
-- etchHistory(): GET from /api/history
-- exportResults(format): POST to /api/export/csv or /api/export/report
-
-### Message Handling
-
-- displayUserMessage(message): Add user message to chat
-- displayAIMessage(response): Parse and display AI response with formatting
-- handleCanvasAction(action): Execute canvas tool action from AI
-- handleAnalysisResults(results): Route results to appropriate display
-
-### Error Handling
-
-- showError(message): Display error toast
-- showSuccess(message): Display success toast
-- handleAPIError(error): Parse and display API error response
-- etryRequest(request): Retry failed API calls with exponential backoff
+- Polls `GET /api/llm-status` every 30 seconds
+- Green dot = reachable, yellow = checking, red = unreachable
+- Status shown in chat header
+- Quick-prompt buttons disabled when LLM offline

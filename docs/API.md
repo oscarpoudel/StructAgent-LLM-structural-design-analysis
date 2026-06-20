@@ -2,32 +2,32 @@
 
 ## Base URL
 
-All API endpoints are relative to the application base URL (default: \http://localhost:5000\).
+All API endpoints are relative to the application base URL (default: `http://localhost:5000`).
 
 ## Authentication
 
-No authentication is required for local development. For production, configure \APP_SECRET_KEY\ and implement appropriate authentication middleware.
+No authentication is required for local development. For production, configure `APP_SECRET_KEY` and implement appropriate authentication middleware.
 
 ## Response Format
 
 All API responses return JSON with consistent structure:
 
-\\\json
+```json
 {
   "status": "success",
   "data": { ... }
 }
-\\\
+```
 
 Error responses include:
 
-\\\json
+```json
 {
   "status": "error",
   "error": "Error message",
   "details": "Additional context"
 }
-\\\
+```
 
 ---
 
@@ -37,7 +37,7 @@ Error responses include:
 
 Returns the main application page.
 
-**Response**: \	ext/html\ - Serves \pp/static/index.html\
+**Response**: `text/html` - Serves `app/static/index.html`
 
 ---
 
@@ -47,12 +47,38 @@ Health check endpoint for monitoring and load balancers.
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "healthy",
   "timestamp": "2026-05-02T12:00:00Z"
 }
-\\\
+```
+
+---
+
+### GET /api/llm-status
+
+Check if the LLM provider (Ollama) is reachable.
+
+**Response**:
+
+```json
+{
+  "status": "success",
+  "llm_available": true,
+  "provider": "ollama",
+  "model": "gemma4:latest"
+}
+```
+
+**503 Response** (LLM unreachable):
+
+```json
+{
+  "status": "error",
+  "error": "LLM provider unavailable"
+}
+```
 
 ---
 
@@ -62,15 +88,15 @@ Run structural analysis from a natural language prompt.
 
 **Request Body**:
 
-\\\json
+```json
 {
   "prompt": "Analyze a simply supported beam with 10m span and 5 kN/m UDL"
 }
-\\\
+```
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "analysis_type": "beam",
@@ -109,54 +135,95 @@ Run structural analysis from a natural language prompt.
     "deflection_mm": [0, 6.51, 0]
   }
 }
-\\\
+```
 
 ---
 
 ### POST /api/chat
 
-Chat with the structural analysis assistant. Supports conversation, canvas actions, and analysis requests.
+Chat with the structural analysis assistant. Supports conversation, canvas actions, context-aware queries, and analysis requests.
 
 **Request Body**:
 
-\\\json
+```json
 {
-  "message": "What is Euler buckling?",
-  "analysis_type": "beam",
+  "message": "What is the maximum moment on this frame?",
+  "analysis_type": "frame",
   "model": {
     "nodes": [...],
     "members": [...],
     "loads": [...]
+  },
+  "results": {
+    "max_moment_kn_m": 62.5,
+    "max_shear_kn": 25.0
+  },
+  "context": {
+    "structure_type": "3d_frame",
+    "model_summary": "3-story, 3-bay frame with 9 beam members..."
   }
 }
-\\\
+```
 
 **Parameters**:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | message | string | Yes | User message (min 1 character) |
-| nalysis_type | string | No | Analysis type: beam, truss, frame, column, 3d_frame |
+| analysis_type | string | No | Analysis type: beam, truss, frame, column, 3d_frame |
 | model | object | No | Canvas structure model with nodes, members, loads |
+| results | object | No | Previous analysis results for follow-up questions |
+| context | object | No | Frontend context (model_summary, structure_type) |
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "response_type": "conversation",
-  "message": "Euler buckling is the sudden lateral deflection...",
+  "message": "The maximum bending moment on this frame is 62.5 kN-m...",
   "source": "conversation_agent",
   "analysis": null,
   "canvas_action": null
 }
-\\\
+```
 
 **Response Types**:
 
-- \conversation\: General chat response
-- \nalysis\: Analysis results with diagrams
-- \canvas_action\: Canvas manipulation instruction
+- `conversation`: General chat response or context-aware answer
+- `analysis`: Analysis results with diagrams
+- `canvas_action`: Canvas manipulation instruction
+- `evaluation`: Evaluation of existing analysis results
+
+---
+
+### POST /api/chat/evaluate
+
+Evaluate existing analysis results through the critic agent.
+
+**Request Body**:
+
+```json
+{
+  "results": {
+    "max_moment_kn_m": 62.5,
+    "max_shear_kn": 25.0
+  },
+  "analysis_type": "beam"
+}
+```
+
+**Response**:
+
+```json
+{
+  "status": "success",
+  "response_type": "evaluation",
+  "message": "The analysis results appear reasonable...",
+  "analysis": null,
+  "canvas_action": null
+}
+```
 
 ---
 
@@ -166,7 +233,7 @@ Analyze a drawn structure model from the 2D or 3D canvas.
 
 **Request Body**:
 
-\\\json
+```json
 {
   "structure_type": "truss",
   "nodes": [
@@ -200,11 +267,11 @@ Analyze a drawn structure model from the 2D or 3D canvas.
     }
   ]
 }
-\\\
+```
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "analysis_type": "truss",
@@ -226,7 +293,76 @@ Analyze a drawn structure model from the 2D or 3D canvas.
     "deflection_mm": [...]
   }
 }
-\\\
+```
+
+---
+
+### GET /api/projects
+
+List all saved projects.
+
+**Response**:
+
+```json
+{
+  "status": "success",
+  "projects": [
+    {
+      "id": "uuid-1",
+      "name": "My Project",
+      "model": { ... },
+      "results": { ... },
+      "created_at": "2026-05-02T12:00:00Z",
+      "updated_at": "2026-05-02T14:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/projects
+
+Create a new project.
+
+**Request Body**:
+
+```json
+{
+  "name": "My Project",
+  "model": { "nodes": [], "members": [] },
+  "results": {}
+}
+```
+
+**Response**: Returns the created project with generated UUID.
+
+### PUT /api/projects/<id>
+
+Update an existing project.
+
+**Request Body**:
+
+```json
+{
+  "name": "Updated Name",
+  "model": { "nodes": [...], "members": [...] },
+  "results": { "max_moment_kn_m": 62.5 }
+}
+```
+
+**Response**: Returns the updated project.
+
+### DELETE /api/projects/<id>
+
+Delete a project.
+
+**Response**:
+
+```json
+{
+  "status": "success",
+  "message": "Project deleted"
+}
+```
 
 ---
 
@@ -246,7 +382,7 @@ List or search steel sections from the AISC database.
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "sections": [
@@ -262,7 +398,7 @@ List or search steel sections from the AISC database.
   ],
   "count": 1
 }
-\\\
+```
 
 ---
 
@@ -274,12 +410,11 @@ Get properties for a specific steel section.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| 
-ame | string | Section designation (e.g., "W10x33") |
+| name | string | Section designation (e.g., "W10x33") |
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "section": {
@@ -296,16 +431,16 @@ ame | string | Section designation (e.g., "W10x33") |
     "weight_lb_per_ft": 33.0
   }
 }
-\\\
+```
 
 **Error Response** (section not found):
 
-\\\json
+```json
 {
   "status": "error",
   "error": "Section not found: W99x999"
 }
-\\\
+```
 
 ---
 
@@ -319,11 +454,11 @@ Get analysis history from SQLite database.
 |-----------|------|----------|-------------|
 | limit | integer | No | Number of results (default: 50) |
 | offset | integer | No | Offset for pagination (default: 0) |
-| nalysis_type | string | No | Filter by analysis type |
+| analysis_type | string | No | Filter by analysis type |
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "history": [
@@ -338,7 +473,7 @@ Get analysis history from SQLite database.
   "count": 1,
   "total": 1
 }
-\\\
+```
 
 ---
 
@@ -354,7 +489,7 @@ Get a specific analysis from history.
 
 **Response**:
 
-\\\json
+```json
 {
   "status": "success",
   "history": {
@@ -366,7 +501,7 @@ Get a specific analysis from history.
     "report_markdown": "# Beam Analysis Report\n\n..."
   }
 }
-\\\
+```
 
 ---
 
@@ -376,16 +511,14 @@ Export analysis results as CSV.
 
 **Request Body**:
 
-\\\json
+```json
 {
   "history_id": 1,
   "include_diagrams": true
 }
-\\\
+```
 
-**Response**:
-
-Returns \	ext/csv\ content with results data.
+**Response**: Returns `text/csv` content with results data.
 
 ---
 
@@ -395,17 +528,15 @@ Export analysis results as a markdown report.
 
 **Request Body**:
 
-\\\json
+```json
 {
   "history_id": 1,
   "include_assumptions": true,
   "include_warnings": true
 }
-\\\
+```
 
-**Response**:
-
-Returns \	ext/markdown\ content with formatted engineering report.
+**Response**: Returns `text/markdown` content with formatted engineering report.
 
 ---
 
@@ -424,4 +555,4 @@ No rate limiting is applied in development. For production, consider implementin
 
 ## CORS
 
-CORS is enabled for all origins in development. Configure \CORS_ORIGINS\ in production to restrict access.
+CORS is enabled for all origins in development. Configure `CORS_ORIGINS` in production to restrict access.
