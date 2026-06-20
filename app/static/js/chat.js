@@ -1,27 +1,33 @@
 import { sendChat } from './api.js';
-import { buildCurrentAnalysisPayload, clearCurrentModel, drawSimpleBeam } from './analysis.js';
+import {
+  applyMemberGroupSections,
+  buildCurrentAnalysisPayload,
+  clearAnalysisResults,
+  clearCurrentModel,
+  drawSimpleBeam,
+  drawThreeByThreeThreeStoryFrame,
+} from './analysis.js';
 import { byId } from './dom.js';
 import { renderResults } from './results.js';
 import { S } from './state.js';
-
-const EXAMPLES = {
-  ss: 'Analyze a simply supported steel beam. Span is 6 m, uniform load is 20 kN/m, E is 200 GPa, I is 8e-6 m4. Check deflection against L/360.',
-  cant: 'Analyze a cantilever beam with span 4 m, UDL 15 kN/m, E 200 GPa, I 5e-5 m4. Check deflection against L/180.',
-  pt: 'Analyze a simply supported beam with span 8 m and a point load of 100 kN at 4 m. E is 200 GPa, I is 3e-5 m4.',
-  truss: 'Analyze a 2D truss with span 8 m, height 3 m, and a load of 100 kN at the top node.',
-  frame: 'Analyze a portal frame with bay width 6 m, column height 4 m, gravity load 20 kN/m on beam, and lateral load 15 kN.',
-  col: 'Check a column for buckling. Length 5 m, pinned-pinned, area 0.008 m2, I 6e-5 m4, E 200 GPa, Fy 345 MPa, axial load 800 kN.',
-};
 
 let lastAnalysisPrompt = '';
 let lastAnalysisType = '';
 
 export function initChat() {
   initFloatingChat();
+  checkLlmStatus();
+  setInterval(checkLlmStatus, 30000);
 
-  byId('exSel').addEventListener('change', (event) => {
-    if (EXAMPLES[event.target.value]) byId('chatInput').value = EXAMPLES[event.target.value];
-    event.target.value = '';
+  byId('chatForm').querySelectorAll('.qp-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      byId('chatInput').value = btn.dataset.prompt;
+      byId('chatInput').focus();
+    });
+  });
+
+  byId('clearChatBtn').addEventListener('click', () => {
+    byId('messages').innerHTML = '<article class="msg msg-bot"><p>Describe a beam, truss, frame, or column problem and I\'ll analyze it.</p></article>';
   });
 
   byId('chatForm').addEventListener('submit', async (event) => {
@@ -35,7 +41,13 @@ export function initChat() {
     const pending = addMsg('bot', 'Responding...');
 
     try {
-      const payload = { message, ...buildCurrentAnalysisPayload() };
+      const analysisPayload = buildCurrentAnalysisPayload();
+      const payload = {
+        message,
+        ...analysisPayload,
+        results: S.results || {},
+        context: buildChatContext(analysisPayload),
+      };
       const data = await sendChat(payload);
       pending.querySelector('p').textContent = data.message || 'Done.';
       if (data.quick_actions) {
@@ -59,6 +71,45 @@ export function initChat() {
       pending.querySelector('p').textContent = 'Error reaching server. Check console for details.';
     }
   });
+}
+
+function buildChatContext(analysisPayload) {
+  const model = analysisPayload.model || {};
+  return {
+    analysis_type: analysisPayload.analysis_type,
+    model,
+    results: S.results || {},
+    model_summary: {
+      nodes: model.nodes?.length || 0,
+      members: model.members?.length || 0,
+      nodal_loads: model.nodal_loads?.length || model.loads?.length || 0,
+      member_loads: model.member_loads?.length || 0,
+      slabs: S.slabs?.length || 0,
+      active_load_combination: S.activeLoadCombination,
+      rigid_diaphragms: S.rigidDiaphragms,
+    },
+  };
+}
+
+async function checkLlmStatus() {
+  const dot = byId('llmDot');
+  if (!dot) return;
+  dot.className = 'llm-dot checking';
+  dot.title = 'Checking LLM…';
+  try {
+    const res = await fetch('/api/llm-status');
+    const data = await res.json();
+    if (data.connected) {
+      dot.className = 'llm-dot on';
+      dot.title = 'LLM connected (' + (data.provider || 'unknown') + ')';
+    } else {
+      dot.className = 'llm-dot off';
+      dot.title = 'LLM offline: ' + (data.message || '');
+    }
+  } catch {
+    dot.className = 'llm-dot off';
+    dot.title = 'LLM offline – server unreachable';
+  }
 }
 
 async function handleQuickAction(action, messageEl) {
@@ -142,10 +193,34 @@ function runCanvasAction(canvasAction, pendingMessage) {
   if (canvasAction.action === 'clear_canvas') {
     clearCurrentModel();
     pendingMessage.querySelector('p').textContent = 'Canvas cleared.';
+  } else if (canvasAction.action === 'clear_analysis') {
+    clearAnalysisResults();
+    pendingMessage.querySelector('p').textContent = 'Analysis results cleared. The model is unchanged.';
   } else if (canvasAction.action === 'draw_simple_beam') {
     drawSimpleBeam(canvasAction.arguments);
     const span = Number(canvasAction.arguments?.span_m) || 2;
     pendingMessage.querySelector('p').textContent = `I drew a ${span.toFixed(2).replace(/\.?0+$/, '')} m simply supported beam on the canvas.`;
+  } else if (canvasAction.action === 'draw_3d_frame_template') {
+    drawThreeByThreeThreeStoryFrame(canvasAction.arguments || {});
+    pendingMessage.querySelector('p').textContent = 'I created a 3x3 3-story 3D frame template.';
+  } else if (canvasAction.action === 'apply_member_group_sections') {
+    applyMemberGroupSections();
+    pendingMessage.querySelector('p').textContent = 'I applied preliminary beam, column, and brace section properties.';
+  } else if (canvasAction.action === 'set_rigid_diaphragm') {
+    S.rigidDiaphragms = canvasAction.arguments?.enabled !== false;
+    const toggle = byId('rigidDiaphragmToggle');
+    if (toggle) toggle.checked = S.rigidDiaphragms;
+    pendingMessage.querySelector('p').textContent = `Rigid diaphragms ${S.rigidDiaphragms ? 'enabled' : 'disabled'}.`;
+  } else if (canvasAction.action === 'set_load_combination') {
+    const combo = canvasAction.arguments?.name;
+    const select = byId('loadComboSelect');
+    if (combo && S.loadCombinations.some((item) => item.name === combo)) {
+      S.activeLoadCombination = combo;
+      if (select) select.value = combo;
+      pendingMessage.querySelector('p').textContent = `Active load combination set to ${combo}.`;
+    } else {
+      pendingMessage.querySelector('p').textContent = 'I could not find that load combination. Use the Load Combo dropdown or ask for EX/EY/default combo.';
+    }
   }
 }
 

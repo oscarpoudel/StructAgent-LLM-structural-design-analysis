@@ -17,6 +17,8 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     analysis_type: str | None = None
     model: dict[str, Any] | None = None
+    results: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

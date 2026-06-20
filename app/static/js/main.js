@@ -16,14 +16,17 @@ import { initCameraPosition, updateStatus } from './canvas3d/ui.js';
 
 let currentProject = null;
 let drawPageInitialized = false;
+let autosaveTimer = null;
+let lastSavedSnapshot = '';
 
 initTheme();
 initLandingPage();
 initSetupPage();
 
 function initLandingPage() {
-  byId('newProjectBtn').addEventListener('click', () => {
+  byId('newProjectBtn').addEventListener('click', async () => {
     currentProject = createProject({ name: 'New Project' });
+    await saveProject(currentProject);
     showSetupPage();
   });
 
@@ -160,10 +163,11 @@ function showDrawPage() {
     initExports();
     initChat();
     initSections();
-    initHistory();
-    initShortcuts();
-    drawPageInitialized = true;
-  }
+      initHistory();
+      initShortcuts();
+      initProjectAutosave();
+      drawPageInitialized = true;
+    }
 
   // Wait for the browser to lay out the tab (it was display:none, now visible)
   requestAnimationFrame(() => {
@@ -246,23 +250,7 @@ function initSetupPage() {
 
   byId('saveProjectBtn').addEventListener('click', async () => {
     if (!currentProject) return;
-    currentProject.nodes = [...S.nodes];
-    currentProject.members = [...S.members];
-    currentProject.slabs = [...S.slabs];
-    currentProject.loads = [...S.loads];
-    currentProject.memberLoads = [...S.memberLoads];
-    currentProject.loadCombinations = [...S.loadCombinations];
-    currentProject.activeLoadCombination = S.activeLoadCombination;
-    currentProject.rigidDiaphragms = S.rigidDiaphragms;
-    currentProject.nextNodeId = S.nextNodeId;
-    currentProject.nextMemberId = S.nextMemberId;
-    currentProject.nextSlabId = S.nextSlabId;
-    currentProject.levels = [...canvas3d.levels];
-    currentProject.gridLinesX = [...canvas3d.gridLinesX];
-    currentProject.gridLinesY = [...canvas3d.gridLinesY];
-    currentProject.analysisType = byId('analysisType').value;
-    await saveProject(currentProject);
-    S.project = currentProject;
+    await persistCurrentProject({ force: true });
     byId('canvasStatus').textContent = 'Project saved!';
     setTimeout(updateStatus, 2000);
   });
@@ -273,6 +261,7 @@ function initSetupPage() {
     if (name) {
       currentProject.name = name;
       byId('projectName').textContent = name;
+      persistCurrentProject({ force: true });
     }
   });
 
@@ -284,6 +273,49 @@ function initSetupPage() {
       showLandingPage();
       loadProjectGrid();
     }
+  });
+}
+
+function snapshotCurrentProject() {
+  if (!currentProject) return null;
+  return {
+    ...currentProject,
+    nodes: [...S.nodes],
+    members: [...S.members],
+    slabs: [...S.slabs],
+    loads: [...S.loads],
+    memberLoads: [...S.memberLoads],
+    loadCombinations: [...S.loadCombinations],
+    activeLoadCombination: S.activeLoadCombination,
+    rigidDiaphragms: S.rigidDiaphragms,
+    nextNodeId: S.nextNodeId,
+    nextMemberId: S.nextMemberId,
+    nextSlabId: S.nextSlabId,
+    levels: [...canvas3d.levels],
+    gridLinesX: [...canvas3d.gridLinesX],
+    gridLinesY: [...canvas3d.gridLinesY],
+    analysisType: byId('analysisType').value,
+  };
+}
+
+async function persistCurrentProject({ force = false } = {}) {
+  const snapshot = snapshotCurrentProject();
+  if (!snapshot) return;
+  const serialized = JSON.stringify(snapshot);
+  if (!force && serialized === lastSavedSnapshot) return;
+  currentProject = snapshot;
+  S.project = currentProject;
+  await saveProject(currentProject);
+  lastSavedSnapshot = JSON.stringify(currentProject);
+}
+
+function initProjectAutosave() {
+  if (autosaveTimer) return;
+  autosaveTimer = window.setInterval(() => {
+    persistCurrentProject().catch(error => console.warn('[StructAgent] Project autosave failed:', error));
+  }, 2000);
+  window.addEventListener('beforeunload', () => {
+    persistCurrentProject({ force: true }).catch(() => {});
   });
 }
 
@@ -420,6 +452,7 @@ async function finishSetup() {
   canvas3d.levels = levels;
 
   await saveProject(currentProject);
+  lastSavedSnapshot = JSON.stringify(currentProject);
   loadProjectIntoState(currentProject);
   showDrawPage();
 }

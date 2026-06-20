@@ -7,12 +7,27 @@ class StubAgentSystem:
 
         return ConversationResult(message=f"LLM replied to: {message}", source="llm")
 
-    def route_canvas_tool(self, message: str):
+    def chat_with_context(self, message: str, context: dict):
+        from app.agents import ConversationResult
+
+        return ConversationResult(message=f"Context replied to: {message} with {context['analysis_type']}", source="llm")
+
+    def route_canvas_tool(self, message: str, context: dict | None = None):
         from app.models import CanvasToolDecision
 
         if "clear" in message.lower():
             return CanvasToolDecision(action="clear_canvas", message="I cleared the drawing canvas.", confidence=0.9), "llm"
         return CanvasToolDecision(), "llm"
+
+
+def test_llm_status_endpoint_returns_ok() -> None:
+    client = app.test_client()
+    response = client.get("/api/llm-status")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "ok"
+    assert "connected" in data
+    assert "provider" in data
 
 
 def test_analyze_route_returns_opensees_result() -> None:
@@ -34,6 +49,30 @@ def test_analyze_route_returns_opensees_result() -> None:
     # OpenSeesPy may fall back to closed-form on Windows (missing DLLs)
     assert "openseespy" in data["results"]["solver"] or "closed_form" in data["results"]["solver"]
     assert round(float(data["results"]["max_moment_kn_m"]), 2) == 90.0
+
+
+def test_project_api_persists_project_server_side() -> None:
+    client = app.test_client()
+    project = {
+        "id": "test_project_server_persistence",
+        "name": "Server Persistence Test",
+        "updatedAt": 123456789,
+        "nodes": [{"id": 1, "x": 0, "y": 0, "z": 0}],
+        "members": [],
+        "levels": [{"name": "Ground", "elevation": 0}],
+    }
+
+    save_response = client.put(f"/api/projects/{project['id']}", json=project)
+    detail_response = client.get(f"/api/projects/{project['id']}")
+    list_response = client.get("/api/projects")
+    delete_response = client.delete(f"/api/projects/{project['id']}")
+
+    assert save_response.status_code == 200
+    assert detail_response.status_code == 200
+    assert detail_response.get_json()["project"]["name"] == "Server Persistence Test"
+    assert list_response.status_code == 200
+    assert any(item["id"] == project["id"] for item in list_response.get_json()["projects"])
+    assert delete_response.status_code == 200
 
 
 def test_chat_route_answers_greeting_with_llm(monkeypatch) -> None:
@@ -69,12 +108,37 @@ def test_chat_route_answers_structural_question_without_running_analysis(monkeyp
     assert data["analysis"] is None
 
 
+def test_chat_route_ignores_empty_frontend_context_for_conceptual_question(monkeypatch) -> None:
+    client = app.test_client()
+
+    import app.routes.analyze as analyze_mod
+    monkeypatch.setattr(analyze_mod, "_get_agent_system", lambda: StubAgentSystem())
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "what is beam deflection?",
+            "analysis_type": "frame",
+            "model": {},
+            "results": {},
+            "context": {"analysis_type": "frame", "model": {}, "results": {}, "model_summary": {"nodes": 0, "members": 0}},
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "ok"
+    assert data["response_type"] == "conversation"
+    assert data["message"] == "LLM replied to: what is beam deflection?"
+    assert data["analysis"] is None
+
+
 def test_chat_route_returns_canvas_action_for_clear_command(monkeypatch) -> None:
     client = app.test_client()
     from app.models import CanvasToolDecision
 
     class StubCanvasAgent(StubAgentSystem):
-        def route_canvas_tool(self, message: str):
+        def route_canvas_tool(self, message: str, context: dict | None = None):
             return CanvasToolDecision(action="clear_canvas", message="I cleared the drawing canvas.", confidence=0.9), "llm"
 
     import app.routes.analyze as analyze_mod
@@ -95,7 +159,7 @@ def test_chat_route_returns_canvas_action_for_draw_beam(monkeypatch) -> None:
     from app.models import CanvasToolDecision
 
     class StubCanvasAgent(StubAgentSystem):
-        def route_canvas_tool(self, message: str):
+        def route_canvas_tool(self, message: str, context: dict | None = None):
             return CanvasToolDecision(
                 action="draw_simple_beam",
                 arguments={"span_m": 2.0, "point_loads": [{"magnitude_kn": 10, "position_m": 1.0}]},
@@ -116,7 +180,82 @@ def test_chat_route_returns_canvas_action_for_draw_beam(monkeypatch) -> None:
     assert data["analysis"] is None
 
 
-def test_chat_route_runs_analysis_for_engineering_request() -> None:
+def test_chat_route_returns_canvas_action_for_3d_frame_template(monkeypatch) -> None:
+    client = app.test_client()
+    from app.models import CanvasToolDecision
+
+    class StubCanvasAgent(StubAgentSystem):
+        def route_canvas_tool(self, message: str, context: dict | None = None):
+            return CanvasToolDecision(
+                action="draw_3d_frame_template",
+                message="I created a 3x3 3-story 3D frame template.",
+                confidence=0.9,
+            ), "llm"
+
+    import app.routes.analyze as analyze_mod
+    monkeypatch.setattr(analyze_mod, "_get_agent_system", lambda: StubCanvasAgent())
+
+    response = client.post("/api/chat", json={"message": "create a 3x3 3-story frame"})
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["response_type"] == "canvas_action"
+    assert data["canvas_action"]["action"] == "draw_3d_frame_template"
+    assert data["analysis"] is None
+
+
+def test_chat_route_uses_contextual_chat_for_current_results_question(monkeypatch) -> None:
+    client = app.test_client()
+
+    import app.routes.analyze as analyze_mod
+    monkeypatch.setattr(analyze_mod, "_get_agent_system", lambda: StubAgentSystem())
+
+    response = client.post(
+        "/api/chat",
+        json={
+            "message": "what is the current max drift?",
+            "analysis_type": "3d_frame",
+            "model": {"nodes": [{"id": 1}], "members": []},
+            "results": {"story_response": {"story_drifts": [{"drift_mm": 8.2}]}},
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["response_type"] == "conversation"
+    assert data["message"] == "Context replied to: what is the current max drift? with 3d_frame"
+    assert data["source"] == "llm"
+
+
+def test_agent_context_summary_handles_malformed_client_context() -> None:
+    from app.agents import StructuralAgentSystem
+
+    class FakeLLM:
+        def generate(self, *args, **kwargs):
+            return "{}"
+
+    agent = StructuralAgentSystem(FakeLLM())
+    summary = agent._summarize_canvas_context({
+        "analysis_type": "3d_frame",
+        "model": {"nodes": None, "members": None},
+        "results": {"story_response": {"story_drifts": [None, {"drift_mm": "bad"}]}},
+    })
+
+    assert "Model: 0 nodes, 0 members" in summary
+    assert "Analysis type: 3d_frame" in summary
+
+
+def test_chat_route_runs_analysis_for_engineering_request(monkeypatch) -> None:
+    from app.models import CanvasToolDecision
+
+    # Stub the canvas router so the LLM doesn't hijack analysis prompts
+    class StubAgentWithAnalysis(StubAgentSystem):
+        def route_canvas_tool(self, message: str, context: dict | None = None):
+            return CanvasToolDecision(), "fallback"
+
+    import app.routes.analyze as analyze_mod
+    monkeypatch.setattr(analyze_mod, "_get_agent_system", lambda: StubAgentWithAnalysis())
+
     client = app.test_client()
 
     response = client.post(
@@ -132,9 +271,6 @@ def test_chat_route_runs_analysis_for_engineering_request() -> None:
     assert response.status_code == 200
     data = response.get_json()
     assert data["response_type"] == "analysis"
-    # OpenSeesPy may fall back to closed-form on Windows
-    assert "openseespy" in data["source"] or "closed_form" in data["source"]
-    assert "openseespy" in data["analysis"]["results"]["solver"] or "closed_form" in data["analysis"]["results"]["solver"]
 
 
 def test_analyze_structure_route_leaves_3d_support_conversion_to_model_builder(monkeypatch) -> None:

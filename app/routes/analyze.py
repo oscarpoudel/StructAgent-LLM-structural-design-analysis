@@ -20,6 +20,7 @@ _get_agent_system = None
 _save_history = None
 _build_analysis_response = None
 _analyze_structure_model = None
+_check_llm_status = None
 
 
 def _is_structural_analysis_request(message: str) -> bool:
@@ -57,6 +58,25 @@ def _has_drawn_structure(model: dict | None) -> bool:
     return len(model.get("nodes", [])) >= 2 and len(model.get("members", [])) >= 1
 
 
+def _is_context_question(message: str, chat_req: ChatRequest) -> bool:
+    text = message.lower()
+    if not _has_real_context(chat_req):
+        return False
+    terms = [
+        "current", "this model", "this building", "my building", "results", "result",
+        "drift", "reaction", "displacement", "member force", "base shear", "load combination",
+        "diaphragm", "floor", "story", "height", "dimension", "bay", "grid",
+    ]
+    return any(term in text for term in terms)
+
+
+def _has_real_context(chat_req: ChatRequest) -> bool:
+    context = chat_req.context or {}
+    model = chat_req.model or context.get("model") or {}
+    results = chat_req.results or context.get("results") or {}
+    return bool(results) or bool(model.get("nodes") or model.get("members"))
+
+
 @bp.post("/api/analyze")
 def analyze():
     try:
@@ -79,7 +99,11 @@ def chat():
 
     log.info("chat_request", extra={"msg_len": len(chat_req.message)})
     agent_system = _get_agent_system()
-    canvas_decision, canvas_source = agent_system.route_canvas_tool(chat_req.message)
+    context = dict(chat_req.context or {})
+    context.setdefault("model", chat_req.model or {})
+    context.setdefault("results", chat_req.results or {})
+    context.setdefault("analysis_type", chat_req.analysis_type or "frame")
+    canvas_decision, canvas_source = agent_system.route_canvas_tool(chat_req.message, context)
     if canvas_decision.action != "none":
         canvas_action = CanvasAction(action=canvas_decision.action, arguments=canvas_decision.arguments)
         return jsonify(ChatResponse(
@@ -91,7 +115,7 @@ def chat():
         ).model_dump(mode="json"))
 
     if not _is_structural_analysis_request(chat_req.message):
-        chat_result = agent_system.chat(chat_req.message)
+        chat_result = agent_system.chat_with_context(chat_req.message, context) if _is_context_question(chat_req.message, chat_req) else agent_system.chat(chat_req.message)
         return jsonify(ChatResponse(
             status="ok",
             response_type="conversation",
@@ -207,6 +231,11 @@ def validate_model():
         "errors": errors,
         "warnings": warnings_out,
     }), (400 if errors else 200)
+
+
+@bp.get("/api/llm-status")
+def check_llm_status():
+    return jsonify({"status": "ok", **(_check_llm_status() or {"connected": False, "message": "Unknown"})})
 
 
 @bp.post("/api/chat/evaluate")

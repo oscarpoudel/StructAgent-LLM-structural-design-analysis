@@ -161,9 +161,15 @@ class StructuralAgentSystem:
                 instructions=(
                     "You route user chat to canvas tools. Return compact JSON only with keys: "
                     "action, arguments, message, confidence. Available actions: none, clear_canvas, "
-                    "draw_simple_beam. Use none for ordinary conversation or conceptual questions. "
+                    "clear_analysis, draw_simple_beam, draw_3d_frame_template, apply_member_group_sections, "
+                    "set_rigid_diaphragm, set_load_combination. Use none for ordinary conversation or conceptual questions. "
                     "Use clear_canvas only when the user wants the drawing/canvas/model cleared or reset. "
+                    "Use clear_analysis when the user wants only analysis results cleared. "
                     "Use draw_simple_beam when the user asks to draw/create a simply supported beam. "
+                    "Use draw_3d_frame_template when the user asks to create/model a 3D, 3-story, or 3x3 frame. "
+                    "Use apply_member_group_sections when the user asks to assign/apply beam and column sections. "
+                    "Use set_rigid_diaphragm with {enabled: true/false} when the user asks to toggle rigid diaphragms. "
+                    "Use set_load_combination with {name: string} when the user asks to change load combination. "
                     "For draw_simple_beam arguments use: span_m number, udl_kn_per_m number if present, "
                     "point_loads array of {magnitude_kn, position_m}. Convert midpoint/middle to span_m/2."
                 ),
@@ -183,6 +189,82 @@ class StructuralAgentSystem:
             return ConversationResult(message=response or agent.fallback["summary"], source="llm")
         except Exception:
             return ConversationResult(message=agent.fallback["summary"], source="fallback")
+
+    def chat_with_context(self, message: str, context: dict[str, Any]) -> ConversationResult:
+        agent = self.managed_agents["conversation"]
+        context_summary = self._summarize_canvas_context(context)
+        fallback_message = self._contextual_fallback_answer(message, context_summary)
+        task = (
+            "You are helping with the user's current structural model and analysis results.\n\n"
+            f"Current context:\n{context_summary}\n\n"
+            f"User question: {message}\n\n"
+            "Answer using only the current context when referring to model/results. Be specific with numbers. "
+            "If the user asks for a modeling action, briefly state what action they can ask you to perform. "
+            "Keep the answer concise and practical."
+        )
+        try:
+            response = self._generate_with_timeout(agent.instructions, task).strip()
+            return ConversationResult(message=response or fallback_message, source="llm")
+        except Exception:
+            return ConversationResult(message=fallback_message, source="fallback")
+
+    def _summarize_canvas_context(self, context: dict[str, Any]) -> str:
+        model = context.get("model") or {}
+        results = context.get("results") or {}
+        analysis_type = context.get("analysis_type") or "unknown"
+        nodes = self._as_list(model.get("nodes"))
+        members = self._as_list(model.get("members"))
+        slabs = self._as_list(model.get("slabs"))
+        loads = self._as_list(model.get("nodal_loads") or model.get("loads"))
+        member_loads = self._as_list(model.get("member_loads") or model.get("memberLoads"))
+        model_summary = context.get("model_summary") or {}
+        lines = [
+            f"Analysis type: {analysis_type}",
+            f"Model: {len(nodes)} nodes, {len(members)} members, {len(slabs)} slabs, {len(loads)} nodal loads, {len(member_loads)} member loads.",
+        ]
+        if analysis_type == "3d_frame" and nodes:
+            z_levels = sorted(set(round(n.get("z", 0), 4) for n in nodes))
+            floor_count = len(z_levels)
+            lines.append(f"Building: {floor_count} floor levels at z = {', '.join(f'{z:.2f}' for z in z_levels)} m")
+            xs = [n.get("x", 0) for n in nodes]
+            ys = [n.get("y", 0) for n in nodes]
+            if xs and ys:
+                lines.append(f"Dimensions: x-range [{min(xs):.2f}, {max(xs):.2f}] m, y-range [{min(ys):.2f}, {max(ys):.2f}] m")
+            if members:
+                groups = {}
+                for m in members:
+                    g = (m.get("group") or "unknown").lower()
+                    groups[g] = groups.get(g, 0) + 1
+                group_parts = [f"{c} {g}{'s' if c > 1 else ''}" for g, c in sorted(groups.items())]
+                if group_parts:
+                    lines.append(f"Member groups: {', '.join(group_parts)}")
+        combo = model.get("active_load_combination") or model_summary.get("active_load_combination")
+        if combo:
+            lines.append(f"Active load combination: {combo}")
+        rigid = model.get("rigid_diaphragms")
+        if rigid is not None:
+            lines.append(f"Rigid diaphragms: {'enabled' if rigid else 'disabled'}")
+        if results:
+            lines.append(self._summarize_results(results, analysis_type))
+        else:
+            lines.append("No analysis results are currently available.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _as_list(value: Any) -> list[Any]:
+        return value if isinstance(value, list) else []
+
+    def _contextual_fallback_answer(self, message: str, context_summary: str) -> str:
+        text = message.lower()
+        if any(term in text for term in ("result", "drift", "reaction", "displacement", "force", "analysis")):
+            return f"Here is what I know from the current model/results:\n{context_summary}"
+        if any(term in text for term in ("model", "building", "current", "geometry")):
+            return f"Current model context:\n{context_summary}"
+        return (
+            "I can use the current model context to answer questions about geometry, loads, analysis results, "
+            "story drift, base reactions, and member forces. I can also help modify the canvas by drawing a 3D frame template, "
+            "applying beam/column sections, clearing analysis, changing load combinations, or toggling rigid diaphragms."
+        )
 
     def evaluate_results(
         self, message: str, results: dict[str, Any], analysis_type: str, original_prompt: str
@@ -235,7 +317,29 @@ class StructuralAgentSystem:
             lines.append(f"Deflection OK: {results.get('deflection_ok', 'N/A')}")
             lines.append(f"Stress OK: {results.get('stress_ok', 'N/A')}")
             lines.append(f"Utilization: {results.get('utilization_ratio', 'N/A')}")
-        elif analysis_type in ("frame", "3d_frame"):
+        elif analysis_type == "3d_frame":
+            lines.append(f"Load combination: {results.get('load_combination', 'N/A')}")
+            lines.append(f"Rigid diaphragms: {results.get('rigid_diaphragms', 'N/A')}")
+            lines.append(f"Max translation: {results.get('max_translation_mm', 'N/A')} mm")
+            base = results.get("base_reactions", {})
+            if base:
+                lines.append(
+                    f"Base reactions: Fx={base.get('Fx_kn', 'N/A')} kN, Fy={base.get('Fy_kn', 'N/A')} kN, "
+                    f"Fz={base.get('Fz_kn', 'N/A')} kN"
+                )
+            story = results.get("story_response", {})
+            drifts = story.get("story_drifts", []) if isinstance(story, dict) else []
+            if drifts:
+                drift_values = [
+                    float(d.get("drift_mm"))
+                    for d in drifts
+                    if isinstance(d, dict) and isinstance(d.get("drift_mm"), (int, float))
+                ]
+                if drift_values:
+                    lines.append(f"Maximum story drift: {max(drift_values)} mm")
+            summary = results.get("member_force_summary", {})
+            lines.append(f"Member force envelopes: {len(summary)} members")
+        elif analysis_type == "frame":
             lines.append(f"Max displacement: {results.get('max_displacement_mm', 'N/A')} mm")
             nd = results.get("node_displacements", {})
             lines.append(f"Node displacements: {len(nd)} nodes")
@@ -268,11 +372,12 @@ class StructuralAgentSystem:
 
         return "\n".join(lines)
 
-    def route_canvas_tool(self, message: str) -> tuple[CanvasToolDecision, str]:
+    def route_canvas_tool(self, message: str, context: dict[str, Any] | None = None) -> tuple[CanvasToolDecision, str]:
         agent = self.managed_agents["canvas_router"]
         fallback = self._fallback_canvas_tool_decision(message)
         task = (
             f"User message:\n{message}\n\n"
+            f"Current context summary:\n{self._summarize_canvas_context(context or {})}\n\n"
             "Return JSON for the best canvas tool decision. Do not include markdown."
         )
         try:
@@ -281,7 +386,14 @@ class StructuralAgentSystem:
             if not match:
                 return fallback, "fallback"
             decision = CanvasToolDecision.model_validate(json.loads(match.group(0)))
-            if decision.action not in {"none", "clear_canvas", "draw_simple_beam"}:
+            if decision.action not in {
+                "none", "clear_canvas", "clear_analysis", "draw_simple_beam", "draw_3d_frame_template",
+                "apply_member_group_sections", "set_rigid_diaphragm", "set_load_combination",
+            }:
+                return fallback, "fallback"
+            if decision.action == "set_rigid_diaphragm" and not isinstance(decision.arguments.get("enabled"), bool):
+                return fallback, "fallback"
+            if decision.action == "set_load_combination" and not str(decision.arguments.get("name") or "").strip():
                 return fallback, "fallback"
             return decision, "llm"
         except Exception:
@@ -306,6 +418,41 @@ class StructuralAgentSystem:
                 message="I cleared the drawing canvas.",
                 confidence=0.9,
             )
+
+        if any(phrase in text for phrase in ("clear analysis", "clear results", "remove analysis", "reset analysis")):
+            return CanvasToolDecision(action="clear_analysis", message="I cleared the analysis results and kept the model.", confidence=0.9)
+
+        if "rigid diaphragm" in text or "diaphragm" in text:
+            enabled = not any(term in text for term in ("off", "disable", "without", "no diaphragm", "remove"))
+            return CanvasToolDecision(
+                action="set_rigid_diaphragm",
+                arguments={"enabled": enabled},
+                message=f"I {'enabled' if enabled else 'disabled'} rigid floor diaphragms.",
+                confidence=0.85,
+            )
+
+        combo_match = re.search(r"(?:set|use|change).*?(1\.[0-9]d[^,.;]*)", text)
+        if "load combination" in text or "combo" in text:
+            name = combo_match.group(1).upper().replace(" ", "") if combo_match else ""
+            aliases = {
+                "1.0D+1.0L": "1.0D + 1.0L",
+                "1.2D+1.6L": "1.2D + 1.6L",
+                "1.2D+1.0EX+0.5L": "1.2D + 1.0EX + 0.5L",
+                "1.2D+1.0EY+0.5L": "1.2D + 1.0EY + 0.5L",
+            }
+            if "ey" in text:
+                name = "1.2D + 1.0EY + 0.5L"
+            elif "ex" in text or "lateral x" in text:
+                name = "1.2D + 1.0EX + 0.5L"
+            elif name in aliases:
+                name = aliases[name]
+            return CanvasToolDecision(action="set_load_combination", arguments={"name": name}, message="I updated the active load combination.", confidence=0.75)
+
+        if any(phrase in text for phrase in ("apply beam column", "apply beam/column", "assign sections", "apply sections", "beam column sections")):
+            return CanvasToolDecision(action="apply_member_group_sections", message="I applied preliminary beam, column, and brace section properties.", confidence=0.9)
+
+        if any(term in text for term in ("3x3", "3 x 3", "three story", "3 story", "3-story", "3d frame")) and any(term in text for term in ("draw", "create", "make", "model", "generate")):
+            return CanvasToolDecision(action="draw_3d_frame_template", message="I created a 3x3 3-story 3D frame template.", confidence=0.9)
 
         draw_terms = ("draw", "create", "make", "model", "sketch")
         if "beam" in text and any(term in text for term in draw_terms):

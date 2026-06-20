@@ -40,6 +40,13 @@ def _init_db() -> None:
             report_markdown TEXT NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            updated_at REAL NOT NULL,
+            project_json TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -80,23 +87,99 @@ def _get_history_item(item_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def _get_projects() -> list[dict]:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT project_json FROM projects ORDER BY updated_at DESC"
+    ).fetchall()
+    conn.close()
+    projects = []
+    for row in rows:
+        try:
+            projects.append(json.loads(row["project_json"]))
+        except json.JSONDecodeError:
+            continue
+    return projects
+
+
+def _get_project(project_id: str) -> dict | None:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT project_json FROM projects WHERE id = ?",
+        (project_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    try:
+        return json.loads(row["project_json"])
+    except json.JSONDecodeError:
+        return None
+
+
+def _save_project(project: dict) -> str:
+    project_id = str(project.get("id") or "").strip()
+    if not project_id:
+        raise ValueError("Project id is required")
+    updated_at = float(project.get("updatedAt") or time.time() * 1000)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute(
+        """
+        INSERT INTO projects (id, updated_at, project_json)
+        VALUES (?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            updated_at = excluded.updated_at,
+            project_json = excluded.project_json
+        """,
+        (project_id, updated_at, json.dumps(project, default=str)),
+    )
+    conn.commit()
+    conn.close()
+    return project_id
+
+
+def _delete_project(project_id: str) -> None:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+    conn.commit()
+    conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Agent / analysis helpers
 # ---------------------------------------------------------------------------
 
-def _get_agent_system() -> StructuralAgentSystem:
+def _get_llm_client() -> OllamaClient | DisabledLLMClient | PydanticAIClient:
     settings = get_settings()
     provider = settings.agent_llm_provider.lower()
     if provider == "none":
-        llm = DisabledLLMClient()
+        return DisabledLLMClient()
     elif provider == "pydanticai":
         try:
-            llm = PydanticAIClient(settings.ollama_base_url, settings.ollama_model)
+            return PydanticAIClient(settings.ollama_base_url, settings.ollama_model)
         except Exception:
-            llm = OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+            return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
     else:
-        llm = OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
-    return StructuralAgentSystem(llm, agent_timeout_s=settings.agent_llm_timeout_s)
+        return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+
+
+def _get_agent_system() -> StructuralAgentSystem:
+    return StructuralAgentSystem(_get_llm_client(), agent_timeout_s=get_settings().agent_llm_timeout_s)
+
+
+def _check_llm_status() -> dict:
+    settings = get_settings()
+    provider = settings.agent_llm_provider.lower()
+    if provider == "none":
+        return {"connected": False, "provider": "none", "message": "LLM disabled"}
+    try:
+        llm = _get_llm_client()
+        llm.generate(system="Respond with only the word ok.", prompt="ping")
+        return {"connected": True, "provider": provider, "message": "Connected"}
+    except Exception as exc:
+        return {"connected": False, "provider": provider, "message": str(exc)}
 
 
 def _build_analysis_response(prompt: str) -> AnalyzeResponse:
@@ -188,10 +271,17 @@ def create_app() -> Flask:
     analyze_bp_mod._save_history = _save_history
     analyze_bp_mod._build_analysis_response = _build_analysis_response
     analyze_bp_mod._analyze_structure_model = _analyze_structure_model
+    analyze_bp_mod._check_llm_status = _check_llm_status
 
     from app.routes import history as history_bp_mod
     history_bp_mod._get_history = _get_history
     history_bp_mod._get_history_item = _get_history_item
+
+    from app.routes import projects as projects_bp_mod
+    projects_bp_mod._get_projects = _get_projects
+    projects_bp_mod._get_project = _get_project
+    projects_bp_mod._save_project = _save_project
+    projects_bp_mod._delete_project = _delete_project
 
     from app.routes import pages as pages_bp_mod
     pages_bp_mod._db_path = DB_PATH
@@ -202,11 +292,13 @@ def create_app() -> Flask:
     from app.routes.history import bp as history_bp
     from app.routes.sections import bp as sections_bp
     from app.routes.pages import bp as pages_bp
+    from app.routes.projects import bp as projects_bp
 
     app.register_blueprint(analyze_bp)
     app.register_blueprint(history_bp)
     app.register_blueprint(sections_bp)
     app.register_blueprint(pages_bp)
+    app.register_blueprint(projects_bp)
 
     log.info("struct_agent_starting", extra={"env": settings.app_env})
     print("\nStructAgent running on http://127.0.0.1:5000\n", flush=True)

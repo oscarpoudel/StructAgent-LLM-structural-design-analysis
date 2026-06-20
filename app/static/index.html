@@ -17,6 +17,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand"><span class="brand-icon">&#9651;</span> StructAgent</div>
+    <span class="credit">Developed by <a href="https://www.oscarp.com.np" target="_blank" rel="noopener">Oscar</a></span>
     <nav class="tabs" id="mainTabs" style="display:none;">
       <button class="tab active" data-tab="draw">Draw</button>
       <button class="tab" data-tab="sections">Sections</button>
@@ -219,22 +220,20 @@
     <canvas id="canvas"></canvas>
     <section class="floating-chat glass" id="floatingChat" style="left:24px;top:24px;">
       <div class="floating-chat-head" id="floatingChatHandle">
-        <h2><span class="chat-bot-icon" aria-hidden="true"></span>Chat</h2>
+        <h2><span class="chat-bot-icon" aria-hidden="true"></span>Chat <span class="llm-dot" id="llmDot" title="Checking LLM…"></span></h2>
       </div>
       <div id="messages" class="messages" aria-live="polite">
         <article class="msg msg-bot"><p>Describe a beam, truss, frame, or column problem and I'll analyze it.</p></article>
       </div>
       <form id="chatForm" class="composer">
-        <select id="exSel" class="ex-select">
-          <option value="">Load example...</option>
-          <option value="ss">Simply Supported Beam</option>
-          <option value="cant">Cantilever Beam</option>
-          <option value="pt">Beam + Point Load</option>
-          <option value="truss">2D Truss</option>
-          <option value="frame">Portal Frame</option>
-          <option value="col">Column Buckling</option>
-        </select>
-        <textarea id="chatInput" rows="3" placeholder="Describe your problem...">Analyze a simply supported steel beam. Span is 6 m, uniform load is 20 kN/m, E is 200 GPa, I is 8e-6 m4. Check deflection against L/360.</textarea>
+        <div class="quick-prompts">
+          <button type="button" class="qp-btn" data-prompt="Draw a 3x3 three-story 3D frame">3D Frame</button>
+          <button type="button" class="qp-btn" data-prompt="Analyze a simply supported steel beam. Span is 6 m, uniform load is 20 kN/m">Beam</button>
+          <button type="button" class="qp-btn" data-prompt="Check a column for buckling. Length 5 m, pinned-pinned, axial load 800 kN">Column</button>
+          <button type="button" class="qp-btn" data-prompt="Analyze a portal frame with bay width 6 m, height 4 m">2D Frame</button>
+        </div>
+        <textarea id="chatInput" rows="3" placeholder="I am your Structural LLM agent. Describe a beam, truss, frame, or column problem and I'll analyze it."></textarea>
+        <button type="button" id="clearChatBtn" class="clear-chat-btn" title="Clear messages">Clear</button>
         <button type="submit" class="send-btn">Send</button>
       </form>
     </section>

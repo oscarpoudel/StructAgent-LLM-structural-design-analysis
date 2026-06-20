@@ -103,6 +103,9 @@ p{margin:0;}
   white-space:nowrap;
 }
 .brand-icon{font-size:1.3rem;opacity:0.8;}
+.credit{font-size:0.75rem;color:var(--text2);white-space:nowrap;}
+.credit a{color:var(--accent);text-decoration:none;font-weight:600;}
+.credit a:hover{text-decoration:underline;}
 .tabs{display:flex;gap:4px;margin-left:16px;}
 .tab{
   padding:6px 16px;border:1px solid transparent;border-radius:var(--radius-sm);
@@ -334,6 +337,14 @@ summary:hover{color:var(--text);}
   content:"";position:absolute;left:4px;top:5px;width:3px;height:3px;
   background:var(--accent);border-radius:50%;box-shadow:7px 0 0 var(--accent);
 }
+.llm-dot{
+  width:10px;height:10px;border-radius:50%;display:inline-block;flex:0 0 10px;
+  background:#aaa;transition:background 0.3s;
+}
+.llm-dot.on{background:#2ecc71;box-shadow:inset 0 0 4px rgba(46,204,113,.3);}
+.llm-dot.off{background:#e74c3c;box-shadow:inset 0 0 4px rgba(231,76,60,.3);}
+.llm-dot.checking{background:#f1c40f;animation:pulse 1s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
 .messages{
   flex:1;overflow-y:auto;padding:16px;
   background:var(--bg2);
@@ -352,16 +363,25 @@ summary:hover{color:var(--text);}
   background:var(--bg2);color:var(--text);font:inherit;font-size:0.88rem;line-height:1.45;
 }
 .composer textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
-.ex-select{
-  padding:6px 10px;border:1px solid var(--border);border-radius:6px;
-  background:var(--bg2);color:var(--text2);font:inherit;font-size:0.8rem;
+.quick-prompts{display:flex;gap:4px;flex-wrap:wrap;}
+.qp-btn{
+  padding:4px 10px;border:1px solid var(--border);border-radius:12px;
+  background:var(--bg3);color:var(--text2);font:inherit;font-size:0.72rem;font-weight:600;
+  cursor:pointer;transition:all 0.12s;
 }
+.qp-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
 .send-btn{
   align-self:flex-end;padding:10px 28px;border:none;border-radius:var(--radius-sm);
   background:var(--accent);color:#fff;font:inherit;font-weight:700;font-size:0.88rem;
   cursor:pointer;transition:all 0.15s;
 }
 .send-btn:hover{filter:brightness(1.1);box-shadow:0 4px 16px var(--accent-glow);}
+.clear-chat-btn{
+  align-self:flex-end;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:transparent;color:var(--text2);font:inherit;font-size:0.78rem;font-weight:600;
+  cursor:pointer;transition:all 0.12s;
+}
+.clear-chat-btn:hover{background:var(--bg3);color:var(--text);}
 .chat-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
 .chat-action-btn{
   padding:4px 10px;border:1px solid var(--border);border-radius:12px;
