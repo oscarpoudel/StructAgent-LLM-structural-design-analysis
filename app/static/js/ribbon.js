@@ -19,6 +19,15 @@ export function initRibbon() {
   initEmptyState();
   measureRibbon();
   window.addEventListener('resize', measureRibbon);
+  const commandViewport = byId('ribbon')?.querySelector('.ribbon-panels');
+  if (commandViewport) {
+    commandViewport.addEventListener('wheel', event => {
+      if (commandViewport.scrollWidth <= commandViewport.clientWidth) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      event.preventDefault();
+      commandViewport.scrollLeft += event.deltaY;
+    }, { passive: false });
+  }
   if (typeof ResizeObserver !== 'undefined') {
     const observer = new ResizeObserver(measureRibbon);
     observer.observe(byId('ribbon'));

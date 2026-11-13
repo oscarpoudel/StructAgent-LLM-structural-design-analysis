@@ -1539,3 +1539,18 @@ body:not(.workspace-active) #statusbar {
 .project-card-details summary{cursor:pointer;font-weight:750;color:var(--accent);margin-bottom:6px;}
 .project-card-details p{margin:5px 0;overflow-wrap:anywhere;}
 .project-card-details strong{color:var(--text);}
+
+/* Prevent the project badge and fixed header from clipping the studio tabs. */
+.topbar-inner{min-width:0;overflow:hidden;}
+.topbar-inner > * {min-width:0;}
+.topbar-inner .brand{flex:0 1 auto;}
+.topbar-inner .project-badge{min-width:0;margin-left:auto;flex:0 1 auto;}
+.topbar-inner .project-name-action{min-width:0;max-width:clamp(110px,15vw,210px);}
+.topbar-inner #themeBtn{flex:0 0 auto;}
+.ribbon-panels::-webkit-scrollbar,.ribbon-tabs::-webkit-scrollbar{height:7px;}
+.ribbon-panels::-webkit-scrollbar-thumb,.ribbon-tabs::-webkit-scrollbar-thumb{background:var(--border);border-radius:7px;}
+@media(max-width:980px){
+  .topbar-inner .brand-sub{display:none;}
+  .topbar-inner .credit{display:none;}
+  .topbar-inner .project-name-action{max-width:clamp(90px,24vw,160px);}
+}
