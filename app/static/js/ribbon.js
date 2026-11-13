@@ -1,4 +1,5 @@
-import { byId, $$ } from './dom.js';
+import { byId, $ } from './dom.js';
+import { activateRibbonTab } from './ribbonState.mjs';
 import { openPopup } from './tabs.js';
 import { switchLoadTab } from './loads.js';
 import { switchSectionTab } from './sections.js';
@@ -60,13 +61,13 @@ export function measureRibbon() {
 }
 
 function initRibbonTabs() {
-  $$('.ribbon-tab').forEach((tab) => {
+  const ribbon = byId('ribbon');
+  if (!ribbon) return;
+  activateRibbonTab('model', ribbon);
+  $('.ribbon-tab', ribbon).forEach((tab) => {
     tab.addEventListener('click', () => {
-      const name = tab.dataset.ribbontab;
-      $$('.ribbon-tab').forEach((t) => t.classList.toggle('active', t === tab));
-      $('.ribbon-panel').forEach((p) => p.classList.toggle('active', p.dataset.ribbontab === name));
-      $('.ribbon-tab').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
-      const panels = byId('ribbon').querySelector('.ribbon-panels');
+      if (!activateRibbonTab(tab.dataset.ribbontab, ribbon)) return;
+      const panels = ribbon.querySelector('.ribbon-panels');
       if (panels) panels.scrollLeft = 0;
       measureRibbon();
     });
