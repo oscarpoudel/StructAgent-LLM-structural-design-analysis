@@ -162,6 +162,7 @@ function loadProjectIntoState(proj) {
 }
 
 function showLandingPage() {
+  document.body.classList.remove('workspace-active');
   byId('landingPage').classList.remove('hidden');
   byId('landingPage').classList.add('active');
   byId('setupPage').classList.add('hidden');
@@ -173,6 +174,7 @@ function showLandingPage() {
 }
 
 function showSetupPage() {
+  document.body.classList.remove('workspace-active');
   byId('landingPage').classList.add('hidden');
   byId('landingPage').classList.remove('active');
   byId('setupPage').classList.remove('hidden');
@@ -185,6 +187,7 @@ function showSetupPage() {
 }
 
 function showDrawPage() {
+  document.body.classList.add('workspace-active');
   byId('landingPage').classList.add('hidden');
   byId('landingPage').classList.remove('active');
   byId('setupPage').classList.add('hidden');

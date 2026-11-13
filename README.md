@@ -456,3 +456,7 @@ Open the **Analyze** ribbon and choose **Code Review** after solving a 3D frame.
 The separate member deflection check compares a service-load displacement with a **user-selected** L/N criterion. AISC 360-22 Chapter L addresses serviceability, but does not prescribe a universal L/360 ratio for all members.
 
 These are **scoped preliminary acceptance checks**, not automated whole-building code compliance. Proper seismic analysis, member strength, system stability, governing load effects, detailing, drift direction and professional review remain necessary. Never rely on a PASS label as approval for construction.
+
+### Project wizard and status bar visibility
+
+The analysis status bar (Agent / Nodes / Members / Loads) is shown **only** while the drawing workspace is active. It is hidden on the project dashboard and Configure Structure wizard. The wizard's Cancel and **Create Project & Start Drawing** actions remain fixed at the visible bottom of the screen, with extra scroll clearance for the last story-level row and small-screen safe areas.

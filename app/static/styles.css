@@ -1350,3 +1350,44 @@ summary:hover{color:var(--text);}
   .setup-inner { padding-bottom:150px; }
   .project-edit-modal { padding:18px; }
 }
+
+/* Hide analysis status metrics outside the drawing workspace. The project
+   dashboard and setup wizard are independent views, not structural analyses. */
+body:not(.workspace-active) #statusbar {
+  display: none;
+}
+
+/* Keep project creation actions within the visible viewport. The analysis
+   status bar is absent here, so no fixed overlay can cover the buttons. */
+.setup-page {
+  inset: var(--topbar-h) 0 0 0;
+  scroll-padding-bottom: 150px;
+}
+.landing-page {
+  inset: var(--topbar-h) 0 0 0;
+}
+.setup-actions {
+  bottom: 0;
+  z-index: 250;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -4px 18px rgba(15, 23, 42, .12);
+}
+.setup-inner {
+  padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 680px) {
+  .setup-actions {
+    gap: 8px;
+    justify-content: flex-end;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .setup-actions .btn-primary {
+    max-width: min(275px, 68vw);
+    white-space: normal;
+    line-height: 1.25;
+    text-align: center;
+  }
+  .setup-inner {
+    padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+  }
+}
