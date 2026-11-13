@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "glm-4.7-flash:latest"
+    ollama_bearer_token: str = ""
     agent_llm_provider: str = "ollama"
     agent_llm_timeout_s: float = 8.0
     app_env: str = "development"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -24,7 +25,8 @@ configure_logging()
 log = get_logger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR.parent / "analysis_history.db"
+DB_PATH = Path(os.environ.get("STRUCTAGENT_DB_PATH", str(BASE_DIR.parent / "analysis_history.db")))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -161,11 +163,11 @@ def _get_llm_client() -> OllamaClient | DisabledLLMClient | PydanticAIClient:
         return DisabledLLMClient()
     elif provider == "pydanticai":
         try:
-            return PydanticAIClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+            return PydanticAIClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s, settings.ollama_bearer_token)
         except Exception:
-            return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+            return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s, settings.ollama_bearer_token)
     else:
-        return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+        return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s, settings.ollama_bearer_token)
 
 
 def _get_agent_system() -> StructuralAgentSystem:

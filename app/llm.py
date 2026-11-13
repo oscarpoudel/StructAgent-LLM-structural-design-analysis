@@ -66,10 +66,12 @@ class DisabledLLMClient:
 class OllamaClient:
     """Ollama native API client (``/api/generate`` + ``/api/chat``)."""
 
-    def __init__(self, base_url: str, model: str, timeout_s: float = 12.0) -> None:
+    def __init__(self, base_url: str, model: str, timeout_s: float = 12.0, bearer_token: str = "") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_s = timeout_s
+        token = bearer_token.strip()
+        self._headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     def generate(self, system: str, prompt: str) -> str:
         payload = {
@@ -79,7 +81,7 @@ class OllamaClient:
             "prompt": prompt,
             "options": {"temperature": 0.1},
         }
-        with httpx.Client(timeout=self.timeout_s) as client:
+        with httpx.Client(timeout=self.timeout_s, headers=self._headers) as client:
             response = client.post(f"{self.base_url}/api/generate", json=payload)
             response.raise_for_status()
             data = response.json()
@@ -117,7 +119,7 @@ class OllamaClient:
         last_error: Exception | None = None
         for payload in candidates:
             try:
-                with httpx.Client(timeout=self.timeout_s) as client:
+                with httpx.Client(timeout=self.timeout_s, headers=self._headers) as client:
                     response = client.post(f"{self.base_url}/api/chat", json=payload)
                     response.raise_for_status()
                     data = response.json()
@@ -152,10 +154,12 @@ class PydanticAIClient:
     native Ollama client.
     """
 
-    def __init__(self, base_url: str, model: str, timeout_s: float = 12.0) -> None:
+    def __init__(self, base_url: str, model: str, timeout_s: float = 12.0, bearer_token: str = "") -> None:
         self.base_url = self._openai_compatible_url(base_url)
         self.model = model
         self.timeout_s = timeout_s
+        token = bearer_token.strip()
+        self._headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     def generate(self, system: str, prompt: str) -> str:
         reply = self.chat(system, [{"role": "user", "content": prompt}])
@@ -182,7 +186,7 @@ class PydanticAIClient:
             payload["tools"] = tools
             if tool_choice:
                 payload["tool_choice"] = tool_choice
-        with httpx.Client(timeout=self.timeout_s) as client:
+        with httpx.Client(timeout=self.timeout_s, headers=self._headers) as client:
             response = client.post(f"{self.base_url}/chat/completions", json=payload)
             response.raise_for_status()
             data = response.json()
