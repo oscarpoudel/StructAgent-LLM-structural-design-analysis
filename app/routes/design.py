@@ -14,7 +14,11 @@ from app.models import (
     SpreadFootingInputs,
     TimberBeamInputs,
 )
-from app.tools.code_checks import check_member_deflection, check_seismic_story_drift
+from app.tools.code_checks import (
+    check_member_deflection,
+    check_seismic_story_drift,
+    check_steel_h1_interaction,
+)
 from app.tools.concrete import design_concrete_beam, design_concrete_column
 from app.tools.cost import estimate_cost
 from app.tools.fatigue import check_fatigue, list_fatigue_categories
@@ -176,6 +180,7 @@ def seismic_drift_code_check():
             importance_factor=data.get("ie"),
             seismic_elastic_confirmed=data.get("seismic_elastic_confirmed"),
             compatible_partitions_confirmed=data.get("compatible_partitions_confirmed", False),
+            direction=data.get("direction", "resultant"),
         )
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 422
@@ -193,6 +198,26 @@ def member_deflection_code_check():
             span_m=data.get("span_m"),
             deflection_mm=data.get("deflection_mm"),
             span_ratio=data.get("span_ratio"),
+        )
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 422
+    return jsonify({"status": "ok", "results": result})
+
+@bp.post("/api/design/code-checks/steel-interaction")
+def steel_h1_code_check():
+    """Evaluate AISC 360-22 H1 for supplied required and available strengths."""
+    data = request.get_json(silent=True) or {}
+    try:
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object.")
+        result = check_steel_h1_interaction(
+            axial_demand_kn=data.get("axial_demand_kn"),
+            available_axial_kn=data.get("available_axial_kn"),
+            mx_demand_kn_m=data.get("mx_demand_kn_m"),
+            mx_available_kn_m=data.get("mx_available_kn_m"),
+            my_demand_kn_m=data.get("my_demand_kn_m"),
+            my_available_kn_m=data.get("my_available_kn_m"),
+            force_type=data.get("force_type", "compression"),
         )
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 422
