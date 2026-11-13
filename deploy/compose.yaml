@@ -15,16 +15,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    network_mode: host
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    security_opt:
-      - no-new-privileges:true
-
   structagent:
     profiles: ["compute"]
     build:

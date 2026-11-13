@@ -1,41 +1,58 @@
-# On-demand StructAgent deployment using an existing Ollama server
+# On-demand StructAgent with an existing host Cloudflare Tunnel and Ollama
 
-This is a **Linux host** deployment with a Cloudflare Tunnel, Caddy landing page, and a host-local controller. The controller requires a validated Cloudflare Access JWT *and* an allowlisted email address before performing actions. It has no HTTP-accessible Docker socket. Only the StructAgent Flask application is started on demand; your existing Ollama GPU server is **not** managed or stopped by this deployment.
+This deployment does **not** install or run cloudflared. Reuse your already configured Cloudflare Tunnel on the Linux host and direct it to the **always-on local gateway at http://127.0.0.1:8080**. Flask starts only when an authorized user clicks Start. Your existing Ollama service continues running separately and is never stopped by this deployment.
 
-## Requirements
+## Connections and ports
 
-- Linux host with Docker Engine + Compose plugin, Python 3.12+, sudo, and systemd.
-- An existing Ollama server reachable from inside the StructAgent container over a trusted private network, preferably VPN. Do not publish an unauthenticated Ollama API on the public internet.
-- Cloudflare domain, Tunnel token, and **Cloudflare Access self-hosted applications** protecting **both** hostnames. Access must reject unauthenticated requests before they reach the tunnel.
-- This deployment intentionally binds the gateway to 127.0.0.1:8080, controller to 127.0.0.1:8765, and Flask to 127.0.0.1:5000.
+- Host Cloudflare Tunnel (already installed): public hostnames -> `http://127.0.0.1:8080`
+- Always-on Caddy gateway: `127.0.0.1:8080`
+- On-demand StructAgent Flask: `127.0.0.1:5000`
+- Host-local controller: `127.0.0.1:8765` (not directly published)
+- Existing remote or host Ollama: `OLLAMA_BASE_URL`, reachable from inside the container on a private network
 
-## Configure
+The gateway distinguishes landing and workspace hostnames. Example routes within the existing Cloudflare Tunnel:
 
-1. Clone this branch to `/opt/structagent` on the Linux host.
-2. Copy `deploy/.env.example` to `deploy/.env`. Set the Cloudflare Tunnel token, Flask secret, private Ollama URL and installed model name. Protect it with `chmod 600`.
-3. Edit the two hostnames in `deploy/gateway/Caddyfile` and in `deploy/gateway/site/index.html` (workspace link).
-4. In Cloudflare Zero Trust, configure Tunnel public hostname routes for both names with origin URL `http://127.0.0.1:8080`. The cloudflared container uses host networking, so 127.0.0.1 refers to the host. Protect **both** hostnames with Cloudflare Access policies allowing only approved identities. Capture the Access application's AUD tag and Team domain. Ideally use the same Access app/policy for both hostnames.
-5. Copy `deploy/controller.env.example` to `/etc/structagent-controller.env` with the Access Team domain, AUD, allowlisted email addresses, and exact HTTPS origins. Protect it with `chmod 600`.
-6. Create the controller account: `sudo useradd --system --no-create-home --shell /usr/sbin/nologin structagentctl`.
-7. Install dependencies: `sudo python3 -m venv /opt/structagent/deploy/controller/.venv` and `sudo /opt/structagent/deploy/controller/.venv/bin/pip install -r /opt/structagent/deploy/controller/requirements.txt`.
-8. Install the supervisor as a root-owned immutable-to-controller command: `sudo install -o root -g root -m 0755 deploy/supervisor/structagent-compute /usr/local/sbin/structagent-compute`. Install sudoers using `sudo install -o root -g root -m 0440 deploy/supervisor/sudoers-structagent /etc/sudoers.d/structagent`, then `sudo visudo -cf /etc/sudoers.d/structagent`.
-9. Install the systemd unit: `sudo cp deploy/supervisor/structagent-controller.service /etc/systemd/system/`, then `sudo systemctl daemon-reload && sudo systemctl enable --now structagent-controller`.
-10. Make sure `/opt/structagent` and all deployment scripts are **not writable by structagentctl**. The sudo-allowed script is root-owned. The controller account does not belong to the docker group.
-11. Pre-build the application while the public workspace is offline: `cd /opt/structagent/deploy && sudo docker compose --profile compute build structagent`.
-12. Initialize the persistent SQLite volume so container UID 1000 can write to it, for example: `sudo docker compose --profile compute run --rm --no-deps --user root --entrypoint sh structagent -c 'mkdir -p /app/data && chown -R appuser:appuser /app/data'`. This one-time command does not start Flask.
-13. Start *only* always-on services: `sudo docker compose up -d gateway cloudflared`.
+| Public hostname | Origin URL |
+| --- | --- |
+| `structagent.example.com` | `http://127.0.0.1:8080` |
+| `app.structagent.example.com` | `http://127.0.0.1:8080` |
 
-After Cloudflare Access login, open `https://structagent.example.com` and press **Start workspace**. The host supervisor starts the Flask container, and the controller waits until `/health` succeeds. Then click **Open workspace**. When the last browser tab stops heartbeating, idle shutdown occurs after `IDLE_SECONDS`; a hard maximum of `MAX_SESSION_SECONDS` also applies.
+**Cloudflare Tunnel and Cloudflare Access are different products.** No additional Tunnel token is necessary. The controller nevertheless requires Cloudflare Access to authenticate users. Configure a self-hosted Cloudflare Access application covering **both** hostnames, with an allow policy for approved identities and a single Access application audience (AUD) shared by both. Cloudflare Access must be enabled and send its signed `Cf-Access-Jwt-Assertion` header. A plain public tunnel without Access does **not** authorize browser start/stop. If you do not already use Access, configure it separately; do not disable the controller's authentication check.
 
-## Operational details
+## Install on Linux
 
-- **Important:** Ollama remains running wherever you currently host it. This setup saves StructAgent container resources, not Ollama GPU resources. If you want Ollama itself to unload model weights, configure idle unloading on the existing Ollama host separately.
-- Container startup may include image creation if you have not pre-built it. Prebuild as shown above.
-- Flask data lives in the named volume `structagent_data`. Back it up before upgrades.
-- Cloudflare Access header validation is repeated by the controller: valid signature, issuer, audience, expiry, allowlisted email. All POSTs additionally require an exact Origin header and custom action header.
-- Only use one controller process. In-memory session state is not coordinated across multiple instances.
-- A controller restart resets its in-memory session state. **Manual reconciliation is required** if Flask was still running. This is a first-version limitation.
-- The browser heartbeat tracks visible workspace tabs, not individual analysis job completion. An explicit Stop or maximum session timeout may interrupt an in-flight long analysis. Add server-side job-aware draining before production use with long-running analyses.
-- A running workspace endpoint can be reached by other Cloudflare Access-approved identities while compute is active. For private projects, use a single Access identity or add application-level per-user authorization.
-- The repo's `.env.example` may contain an old Ollama address; only the new host-specific `deploy/.env` is used for the Compose container.
-- There are no public Docker daemon, Ollama, Flask, or controller ports in this deployment.
+1. Clone branch `feature/on-demand-cloudflare-existing-ollama` at `/opt/structagent`.
+2. Copy `deploy/.env.example` to `deploy/.env`. Set `APP_SECRET_KEY`, private `OLLAMA_BASE_URL` and an already installed `OLLAMA_MODEL`. Protect with `chmod 600`. No Cloudflare token is required.
+3. Replace `structagent.example.com` and `app.structagent.example.com` in `deploy/gateway/Caddyfile` and `deploy/gateway/site/index.html`.
+4. Update your **existing** Cloudflare Tunnel's published application routes so both hostnames use `http://127.0.0.1:8080`. Do not create a new tunnel. Ensure Access protects both hostnames before making the page publicly available. Capture the Access application's AUD and Team domain.
+5. Copy `deploy/controller.env.example` to `/etc/structagent-controller.env`; populate the Access Team domain, AUD, allowed email identities and exact HTTPS origins. Protect with `sudo chmod 600 /etc/structagent-controller.env`.
+6. Create the controller user: `sudo useradd --system --no-create-home --shell /usr/sbin/nologin structagentctl`.
+7. Install dependencies: `sudo python3 -m venv /opt/structagent/deploy/controller/.venv`; then `sudo /opt/structagent/deploy/controller/.venv/bin/pip install -r /opt/structagent/deploy/controller/requirements.txt`.
+8. Install the root-owned supervisor: `sudo install -o root -g root -m 0755 deploy/supervisor/structagent-compute /usr/local/sbin/structagent-compute`. Install sudoers: `sudo install -o root -g root -m 0440 deploy/supervisor/sudoers-structagent /etc/sudoers.d/structagent`, then check with `sudo visudo -cf /etc/sudoers.d/structagent`.
+9. Install systemd: `sudo cp deploy/supervisor/structagent-controller.service /etc/systemd/system/`; `sudo systemctl daemon-reload && sudo systemctl enable --now structagent-controller`.
+10. Ensure `/opt/structagent` and all deployment/supervisor scripts cannot be modified by `structagentctl`. Do not add the controller user to the docker group.
+11. Build the compute image: `cd /opt/structagent/deploy && sudo docker compose --profile compute build structagent`.
+12. Initialize persistent SQLite storage volume ownership (the container uses user `appuser`): `sudo docker compose --profile compute run --rm --no-deps --user root --entrypoint sh structagent -c 'mkdir -p /app/data && chown -R appuser:appuser /app/data'`.
+13. Start the **gateway only**: `sudo docker compose up -d gateway`. Your existing `cloudflared` service stays running independently. Check locally with `curl -H 'Host: structagent.example.com' http://127.0.0.1:8080/`.
+
+After authenticating through Cloudflare Access, open the landing hostname and click Start. The host supervisor starts only StructAgent. After /health returns 200, Open Workspace becomes available.
+
+## Commands and runtime
+
+- Initial always-on service: `sudo docker compose up -d gateway`
+- Manual compute start: `sudo docker compose --profile compute up -d --no-deps structagent`
+- Manual compute stop: `sudo docker compose stop -t 45 structagent`
+- Status: `sudo docker compose ps -a`
+- Logs: `sudo docker compose logs -f structagent`
+
+The landing page and host Cloudflare Tunnel remain available while compute is stopped. A browser heartbeat reports visible workspace tabs; the controller stops compute after the configured idle timeout, default 30 minutes, or the maximum session duration, default two hours.
+
+## Security and limitations
+
+- Keep `127.0.0.1:8765`, Flask, and the Docker daemon inaccessible from the internet. Only the gateway is a Cloudflare Tunnel origin.
+- The controller validates Cloudflare Access JWT signature, audience, issuer, expiry and allowed email addresses, plus POST Origin/custom-header checks. The supervisor permits only two predefined operations and is invoked via tightly restricted sudoers. Do not place an unrestricted Docker socket inside a public-facing container.
+- If Cloudflare Access is not in use, browser start/stop is **not operational** with this controller. Simply having an authenticated Tunnel token is not the same as authenticating website users.
+- The controller's session state is currently in memory, so a controller restart needs reconciliation with Docker before a new session can start correctly.
+- The browser heartbeat does not detect active structural analysis tasks; a manual stop or hard session timeout can interrupt an in-flight calculation.
+- The remote Ollama server is not stopped. To reduce GPU load, configure model unloading or idle behavior on the existing Ollama host.
+- Running workspace access should remain restricted. Access-approved users share the app's SQLite project storage, so consider per-user project isolation before inviting multiple users.
