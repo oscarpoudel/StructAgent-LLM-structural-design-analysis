@@ -13,7 +13,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.models import BeamSelectionInputs, ColumnSelectionInputs
 from app.tools.code_checks import check_steel_h1_interaction

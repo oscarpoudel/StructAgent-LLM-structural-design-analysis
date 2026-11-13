@@ -469,3 +469,5 @@ class ChatResponse(BaseModel):
     analysis: AnalyzeResponse | None = None
     canvas_action: CanvasAction | None = None
     quick_actions: list[dict[str, Any]] | None = None
+    design_result: dict[str, Any] | None = None
+    design_report: str | None = None

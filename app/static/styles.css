@@ -1244,3 +1244,8 @@ summary:hover{color:var(--text);}
   .code-review-fields { grid-template-columns:1fr; }
   .studio-pill-row { gap:6px; }
 }
+
+.chat-design-result { margin-top:10px;padding:13px;border:1px solid var(--border);border-left:4px solid var(--studio-teal);border-radius:8px;background:var(--panel-2); }
+.chat-design-result strong { display:block;color:var(--accent);font-size:.82rem;margin-bottom:6px; }
+.chat-design-result p { margin:7px 0;line-height:1.55;white-space:pre-wrap; }
+.chat-design-note {font-size:.76rem;color:var(--text3);}

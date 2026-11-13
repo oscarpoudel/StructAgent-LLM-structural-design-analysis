@@ -64,6 +64,9 @@ export function initChat() {
         renderResults(data.analysis);
         addAnalysisActions(pending);
       }
+      if (data.response_type === 'design' && data.design_result) {
+        addDesignResult(pending, data.design_result, data.design_report);
+      }
       if (data.response_type === 'evaluation') {
         addQuickActions(pending, data.quick_actions || []);
       }
@@ -306,4 +309,41 @@ function addMsg(role, text) {
   messages.appendChild(article);
   messages.scrollTop = messages.scrollHeight;
   return article;
+}
+
+function addDesignResult(container, design, report) {
+  const panel = document.createElement('div');
+  panel.className = 'chat-design-result';
+  const title = document.createElement('strong');
+  title.textContent = design.reference || 'Deterministic design result';
+  panel.appendChild(title);
+  const summary = document.createElement('p');
+  const computed = design.result || {};
+  summary.textContent = computed.selected
+    ? `Candidate: ${computed.selected.name}; ${computed.selected.weight_kg_per_m} kg/m`
+    : computed.utilization !== undefined
+      ? `Interaction ratio: ${computed.utilization}; ${computed.result}`
+      : 'No section selected in the current library.';
+  panel.appendChild(summary);
+  const note = document.createElement('p');
+  note.className = 'chat-design-note';
+  note.textContent = 'Ollama assists with interpreting the request. All numerical calculations use deterministic code. This result is preliminary.';
+  panel.appendChild(note);
+  if (report) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-action-btn';
+    btn.textContent = 'Download calculation trace';
+    btn.addEventListener('click', () => {
+      const blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'structagent-design-trace.md';
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+    panel.appendChild(btn);
+  }
+  container.appendChild(panel);
 }

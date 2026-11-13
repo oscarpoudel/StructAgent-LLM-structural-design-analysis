@@ -17,6 +17,7 @@ from app.models import (
     Structure3DInputs,
     TrussInputs,
 )
+from app.tools.design_assistant import is_design_request, respond_to_design_request
 from app.tools.load_combinations import get_controlling_combination, run_all_load_combinations
 from app.tools.multi_hazard import optimize_multi_hazard
 from app.tools.sensitivity import run_sensitivity
@@ -109,6 +110,16 @@ def chat():
 
     log.info("chat_request", extra={"msg_len": len(chat_req.message)})
     agent_system = _get_agent_system()
+    if is_design_request(chat_req.message):
+        response = respond_to_design_request(chat_req.message, agent_system.llm)
+        return jsonify(ChatResponse(
+            status="ok",
+            response_type="design" if response.get("design_result") else "conversation",
+            message=response["message"],
+            source=response["source"],
+            design_result=response.get("design_result"),
+            design_report=response.get("design_report"),
+        ).model_dump(mode="json"))
     context = dict(chat_req.context or {})
     context.setdefault("model", chat_req.model or {})
     context.setdefault("results", chat_req.results or {})
