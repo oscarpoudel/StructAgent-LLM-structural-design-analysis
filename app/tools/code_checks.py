@@ -6,7 +6,7 @@ criterion. They do not certify whole-building code compliance.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
 # ASCE/SEI 7-22, Section 12.12.1, Table 12.12-1.
 # Values are Delta_a / h_sx. The special four-story class requires
