@@ -361,3 +361,18 @@ def evaluate_results():
             {"label": "Compare Limits", "action": "compare_limits"},
         ],
     ).model_dump(mode="json"))
+
+
+@bp.post("/api/load-combinations/3d-templates")
+def load_combination_templates_3d():
+    """Return representative 3D factor maps with explicit scope limitations."""
+    from app.tools.load_templates import representative_strength_combinations
+
+    data = request.get_json(silent=True) or {}
+    try:
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object.")
+        result = representative_strength_combinations(data.get("cases", []))
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 422
+    return jsonify({"status": "ok", "results": result})
