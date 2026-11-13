@@ -5,6 +5,7 @@ import { normalizeProjectDetails, validateProjectDetails, parseGridSpacings, val
 import { canvas3d, draw, initCanvas, resizeCanvas } from './canvas3d/index.js';
 import { triggerRedraw } from './canvas3d/scene.js';
 import { initAnalysis } from './analysis.js';
+import { resetCanvasEmptyState, updateCanvasEmptyState } from './canvas3d/emptyState.mjs';
 import { initChat } from './chat.js';
 import { initHistory } from './history.js';
 import { initModals, showLoadModal, showMemberLoadModal, showSupportModal, showSlabModal } from './modals.js';
@@ -225,6 +226,8 @@ function showDrawPage() {
 
   byId('projectName').textContent = currentProject.name || 'Untitled Project';
   byId('projectName').title = 'Project Information: ' + (currentProject.name || 'Untitled Project');
+  resetCanvasEmptyState();
+  updateCanvasEmptyState(byId('canvasEmpty'), S.nodes.length);
   updatePlanLevelSelect();
 
   if (!drawPageInitialized) {

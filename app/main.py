@@ -280,6 +280,21 @@ def create_app() -> Flask:
     app.config["JSON_SORT_KEYS"] = False
     app.secret_key = settings.app_secret_key
 
+    @app.after_request
+    def avoid_stale_frontend_assets(response):
+        # Public demo redeploys replace JS modules in place. Force browsers and
+        # Cloudflare to request the current code rather than a cached partial
+        # module graph from a previous container image.
+        if response.status_code == 200 and (
+            request.path == "/"
+            or (
+                request.path.startswith("/static/")
+                and request.path.endswith((".js", ".mjs", ".css"))
+            )
+        ):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+
     # Wire blueprint dependencies before registering
     from app.routes import analyze as analyze_bp_mod
     analyze_bp_mod._get_agent_system = _get_agent_system

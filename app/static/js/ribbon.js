@@ -1,5 +1,6 @@
 import { byId, $ } from './dom.js';
-import { activateRibbonTab } from './ribbonState.mjs';
+import { wireRibbonNavigation } from './ribbonState.mjs';
+import { dismissCanvasEmptyState } from './canvas3d/emptyState.mjs';
 import { openPopup } from './tabs.js';
 import { switchLoadTab } from './loads.js';
 import { switchSectionTab } from './sections.js';
@@ -41,6 +42,8 @@ function initEmptyState() {
   if (start333) start333.addEventListener('click', () => drawThreeByThreeThreeStoryFrame());
   const startBeam = byId('emptyStartBeam');
   if (startBeam) startBeam.addEventListener('click', () => drawSimpleBeam({}));
+  const dismiss = byId('canvasEmptyDismiss');
+  if (dismiss) dismiss.addEventListener('click', () => dismissCanvasEmptyState(byId('canvasEmpty')));
 }
 
 // Keep the draw page offset in sync with the ribbon's real height (which can
@@ -63,15 +66,7 @@ export function measureRibbon() {
 function initRibbonTabs() {
   const ribbon = byId('ribbon');
   if (!ribbon) return;
-  activateRibbonTab('model', ribbon);
-  $('.ribbon-tab', ribbon).forEach((tab) => {
-    tab.addEventListener('click', () => {
-      if (!activateRibbonTab(tab.dataset.ribbontab, ribbon)) return;
-      const panels = ribbon.querySelector('.ribbon-panels');
-      if (panels) panels.scrollLeft = 0;
-      measureRibbon();
-    });
-  });
+  wireRibbonNavigation(ribbon, measureRibbon);
 }
 
 function initRibbonActions() {

@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>StructAgent &mdash; Structural Analysis</title>
-  <link rel="stylesheet" href="/static/styles.css"/>
+  <link rel="stylesheet" href="/static/styles.css?v=20261113-ribbon-canvas"/>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -349,7 +349,8 @@
 
   <section class="canvas-wrap">
     <canvas id="canvas"></canvas>
-    <div class="canvas-empty show" id="canvasEmpty">
+    <div class="canvas-empty show" id="canvasEmpty" role="region" aria-label="Quick start a new model">
+      <button id="canvasEmptyDismiss" class="canvas-empty-close" type="button" aria-label="Dismiss quick start">Close</button>
       <div class="canvas-empty-ico">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
           <path d="M3 20 L9 6 L15 14 L21 4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1089,7 +1090,7 @@
   <div class="sb-seg"><span class="sb-k">Solver</span><span class="sb-v" id="sbSolver">OpenSeesPy</span></div>
 </footer>
 
-<script type="module" src="/static/js/main.js"></script>
+<script type="module" src="/static/js/main.js?v=20261113-ribbon-canvas"></script>
 <script defer src="/static/js/session-heartbeat.js"></script>
 </body>
 </html>

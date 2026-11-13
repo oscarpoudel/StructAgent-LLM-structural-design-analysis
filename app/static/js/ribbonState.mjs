@@ -24,3 +24,19 @@ export function activateRibbonTab(name, root) {
   }
   return true;
 }
+
+/** Wire actual user clicks, not only the active-class state transition. */
+export function wireRibbonNavigation(root, onChange = () => {}) {
+  if (!root) return false;
+  if (!activateRibbonTab('model', root)) return false;
+  const tabs = Array.from(root.querySelectorAll('.ribbon-tab'));
+  const viewport = root.querySelector('.ribbon-panels');
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      if (!activateRibbonTab(tab.dataset.ribbontab, root)) return;
+      if (viewport) viewport.scrollLeft = 0;
+      onChange();
+    });
+  }
+  return true;
+}

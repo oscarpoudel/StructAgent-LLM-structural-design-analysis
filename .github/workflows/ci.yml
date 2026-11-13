@@ -43,8 +43,8 @@ jobs:
 
       - name: Validate project wizard inputs and geometry
         run: |
-          node --test tests/test_project_metadata.mjs tests/test_studio_workflow.mjs tests/test_ribbon_tabs.mjs
-          for source in app/static/js/main.js app/static/js/ribbon.js app/static/js/results.js app/static/js/memberDiagrams.js app/static/js/projects.js app/static/js/analysis.js app/static/js/canvas3d/render.js; do
+          node --test tests/test_project_metadata.mjs tests/test_studio_workflow.mjs tests/test_ribbon_tabs.mjs tests/test_ribbon_integration.mjs
+          for source in app/static/js/main.js app/static/js/ribbon.js app/static/js/ribbonState.mjs app/static/js/canvas3d/emptyState.mjs app/static/js/results.js app/static/js/memberDiagrams.js app/static/js/projects.js app/static/js/analysis.js app/static/js/canvas3d/render.js; do
             node --input-type=module --check < "$source"
           done
 

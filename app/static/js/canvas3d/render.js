@@ -2,6 +2,7 @@ import { byId } from '../dom.js';
 import { S } from '../state.js';
 import { canvas3d, triggerRedraw } from './scene.js';
 import { colorForRatioHex } from './colorScale.js';
+import { updateCanvasEmptyState } from './emptyState.mjs';
 
 // Transient legend data for the on-canvas result legend. Cleared each draw.
 let activeLegend = null;
@@ -51,6 +52,7 @@ function getLevelMembers() {
 
 export function draw() {
   if (!canvas3d.scene) return;
+  updateCanvasEmptyState(byId('canvasEmpty'), S.nodes.length);
   activeLegend = null;
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   canvas3d.scene.background = new THREE.Color(isDark ? '#0f1419' : '#f8fafb');
