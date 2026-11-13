@@ -1,4 +1,4 @@
-import { byId, $ } from './dom.js';
+import { byId, $$ } from './dom.js';
 import { wireRibbonNavigation } from './ribbonState.mjs';
 import { dismissCanvasEmptyState } from './canvas3d/emptyState.mjs';
 import { openPopup } from './tabs.js';
