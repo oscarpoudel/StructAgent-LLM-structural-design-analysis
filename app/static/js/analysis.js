@@ -5,6 +5,7 @@ import { showProp } from './canvas3d/render.js';
 import { canvas3d, triggerRedraw } from './canvas3d/scene.js';
 import { renderResults } from './results.js';
 import { resetModel, S } from './state.js';
+import { initMemberDiagrams } from './memberDiagrams.js';
 
 export function initAnalysis() {
   byId('runBtn').addEventListener('click', runAnalysis);
@@ -18,6 +19,7 @@ export function initAnalysis() {
   init3DAnalysisControls();
   initASCEComboTemplates();
   initCodeReview();
+  initMemberDiagrams();
   window.StructAgentDebug = {
     getState: () => JSON.parse(JSON.stringify(S)),
     drawSimpleBeam,

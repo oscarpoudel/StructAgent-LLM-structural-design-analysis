@@ -775,25 +775,43 @@ export function showProp() {
 }
 
 function drawMemberForceOverlay3D() {
+  const specifications = {
+    N:  { key: 'max_abs_axial_kn', unit: 'kN', title: 'Local axial |N|' },
+    Vy: { key: 'max_abs_shear_y_kn', unit: 'kN', title: 'Local shear |Vy|' },
+    Vz: { key: 'max_abs_shear_z_kn', unit: 'kN', title: 'Local shear |Vz|' },
+    My: { key: 'max_abs_moment_y_kn_m', unit: 'kN-m', title: 'Local bending |My|' },
+    Mz: { key: 'max_abs_moment_z_kn_m', unit: 'kN-m', title: 'Local bending |Mz|' },
+    T:  { key: 'max_abs_torsion_kn_m', unit: 'kN-m', title: 'Local torsion |T|' },
+  };
+  const selected = byId('forceComponentSelect')?.value || 'Mz';
+  const specification = specifications[selected] || specifications.Mz;
   const summaries = S.results.member_force_summary || {};
-  const values = Object.values(summaries).map(s => Math.max(s.max_abs_moment_y_kn_m || 0, s.max_abs_moment_z_kn_m || 0, s.max_abs_axial_kn || 0));
+  const values = Object.values(summaries).map(summary => Number(summary[specification.key]) || 0);
   const maxVal = Math.max(...values, 1e-9);
+  const offset = getElevOffset();
+  const members = canvas3d.viewMode === 'elevation' ? getElevMembers() : getLevelMembers();
 
-  S.members.forEach((member) => {
+  members.forEach(member => {
     const summary = summaries[String(member.id)] || summaries[member.id];
     if (!summary) return;
-    const n1 = S.nodes.find((n) => n.id === member.n1);
-    const n2 = S.nodes.find((n) => n.id === member.n2);
+    const n1 = S.nodes.find(n => n.id === member.n1);
+    const n2 = S.nodes.find(n => n.id === member.n2);
     if (!n1 || !n2) return;
 
-    const demand = Math.max(summary.max_abs_moment_y_kn_m || 0, summary.max_abs_moment_z_kn_m || 0, summary.max_abs_axial_kn || 0);
+    const demand = Math.abs(Number(summary[specification.key]) || 0);
     if (demand <= 0) return;
     const ratio = Math.min(demand / maxVal, 1);
     const color = colorForRatioHex(ratio);
     const radius = 0.08 + ratio * 0.16;
 
-    const v1 = new THREE.Vector3(n1.x, n1.y, n1.z || 0);
-    const v2 = new THREE.Vector3(n2.x, n2.y, n2.z || 0);
+    const location = n => {
+      if (!offset) return new THREE.Vector3(n.x, n.y, n.z || 0);
+      return canvas3d.elevType === 'xAxis'
+        ? new THREE.Vector3(n.x - offset.cx, -offset.cy, n.z || 0)
+        : new THREE.Vector3(-offset.cx, n.y - offset.cy, n.z || 0);
+    };
+    const v1 = location(n1);
+    const v2 = location(n2);
     const distance = v1.distanceTo(v2);
     if (distance <= 0) return;
 
@@ -808,8 +826,8 @@ function drawMemberForceOverlay3D() {
   });
 
   activeLegend = {
-    title: 'Member demand (max |M| / |N|)',
-    unit: 'kN·m / kN',
+    title: specification.title + ' (selected combination)',
+    unit: specification.unit,
     min: 0,
     max: maxVal,
   };

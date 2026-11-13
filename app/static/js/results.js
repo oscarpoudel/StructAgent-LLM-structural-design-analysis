@@ -39,7 +39,13 @@ export function renderResults(data) {
     card.className = 'rp-metric';
     if (value === 'Pass') card.classList.add('pass');
     if (value === 'Fail') card.classList.add('fail');
-    card.innerHTML = `<span>${label}</span><strong>${formatMetric(value)} ${unit}</strong>`;
+    const metricLabel = document.createElement('span');
+    metricLabel.textContent = label;
+    const metricValue = document.createElement('strong');
+    const isCount = label === 'Nodes' || label === 'Members';
+    metricValue.textContent = (isCount && typeof value === 'number'
+      ? String(Math.trunc(value)) : formatMetric(value)) + (unit ? ' ' + unit : '');
+    card.append(metricLabel, metricValue);
     grid.appendChild(card);
   });
   content.appendChild(grid);
@@ -98,8 +104,10 @@ function formatBoolean(value) {
 }
 
 function formatMetric(value) {
-  if (typeof value !== 'number') return value;
-  return Math.abs(value) >= 100 ? value.toFixed(2) : value.toPrecision(4);
+  if (typeof value !== 'number') return String(value);
+  if (!Number.isFinite(value)) return 'n/a';
+  if (Number.isInteger(value)) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
 function renderDrawPlot(content, data) {
