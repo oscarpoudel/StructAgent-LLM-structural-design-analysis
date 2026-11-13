@@ -33,11 +33,11 @@ function fillOptions(select, values, selected) {
   if (values.some(([value]) => value === selected)) select.value = selected;
 }
 
-function refreshMembers() {
+function refreshMembers(preferredMember = null) {
   const result = getComboResults();
   const ids = Object.keys(result?.member_force_diagrams || {})
     .sort((a, b) => Number(a) - Number(b));
-  const selected = byId('diagramMember').value;
+  const selected = preferredMember || byId('diagramMember').value;
   fillOptions(byId('diagramMember'), ids.map(id => [id, `Frame ${id}`]), selected);
   renderDiagrams();
 }
@@ -51,7 +51,7 @@ function openMemberDiagrams() {
     ? Object.keys(results).map(name => [name, name])
     : S.results ? [[active || 'Current', active || 'Current']] : [];
   fillOptions(byId('diagramCombination'), combos, active);
-  refreshMembers();
+  refreshMembers(S.selected?.type === 'member' ? String(S.selected.id) : null);
 }
 
 function closeMemberDiagrams() {
@@ -85,7 +85,7 @@ function renderDiagrams() {
   const residual = Math.max(0, ...residuals.map(Math.abs));
   note.textContent = `Combination: ${combo}. Member: ${member}. Length: ${formatForce(diagram.station_m.at(-1))} m. ` +
     `Maximum local end-equilibrium residual: ${formatForce(residual)} in component units. ` +
-    'Section resultants use the I-to-J local member coordinates.';
+    'Section resultants use the I-to-J local member coordinates. Reanalyze the structure after editing members, loads or combinations.';
 
   const selected = byId('diagramComponent').value;
   const items = selected === 'all'

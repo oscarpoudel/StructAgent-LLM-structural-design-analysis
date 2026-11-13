@@ -753,12 +753,16 @@ export function showProp() {
       <div class="pf"><label>A (m2)</label><input type="text" value="${member.A}" id="mA"/></div>
       <div class="pf"><label>Iy (m4)</label><input type="text" value="${member.Iy||1e-4}" id="mIy"/></div>
       <div class="pf"><label>Iz (m4)</label><input type="text" value="${member.Iz||1e-4}" id="mIz"/></div>
-      <div class="pf"><label>E (GPa)</label><input type="number" value="${member.E}" step="1" id="mE"/></div>`;
+      <div class="pf"><label>E (GPa)</label><input type="number" value="${member.E}" step="1" id="mE"/></div>
+      <div class="pf"><button type="button" id="memberViewDiagram" class="btn-secondary" style="width:100%;margin-top:6px;">View Force Diagrams</button></div>`;
     panel.querySelector('#mGroup').addEventListener('change', (e) => { member.group = e.target.value; triggerRedraw(); });
     panel.querySelector('#mA').addEventListener('change', (e) => { member.A = parseFloat(e.target.value); });
     panel.querySelector('#mIy').addEventListener('change', (e) => { member.Iy = parseFloat(e.target.value); });
     panel.querySelector('#mIz').addEventListener('change', (e) => { member.Iz = parseFloat(e.target.value); });
     panel.querySelector('#mE').addEventListener('change', (e) => { member.E = parseFloat(e.target.value); });
+    panel.querySelector('#memberViewDiagram').addEventListener('click', () => {
+      byId('memberDiagramsBtn')?.click();
+    });
   } else if (S.selected.type === 'slab') {
     const slab = S.slabs.find((item) => item.id === S.selected.id);
     if (!slab) { panel.innerHTML = ''; return; }
