@@ -44,9 +44,9 @@ def test_code_checks_and_load_templates_endpoints():
 def test_chat_design_without_live_ollama_can_use_strict_labeled_parser(monkeypatch):
     from app.routes import analyze
 
+    app = create_app()
     monkeypatch.setattr(analyze, "_get_agent_system",
                         lambda: SimpleNamespace(llm=DisabledLLMClient()))
-    app = create_app()
     result = app.test_client().post("/api/chat", json={
         "message": "Check steel H1 interaction Pr=20, Pc=100, Mrx=30, Mcx=100, Mry=10, Mcy=100",
     })
