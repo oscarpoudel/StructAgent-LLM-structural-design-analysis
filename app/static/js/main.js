@@ -523,8 +523,10 @@ function fillProjectDetails(prefix, project) {
   const data = normalizeProjectDetails(project);
   byId(prefix + 'ProjectName').value = data.name;
   for (const [field, value] of Object.entries(data.metadata)) {
-    const domName = field.charAt(0).toUpperCase() + field.slice(1);
-    const element = byId(prefix + 'Project' + domName);
+    const domName = field === 'projectNumber'
+      ? 'ProjectNumber'
+      : 'Project' + field.charAt(0).toUpperCase() + field.slice(1);
+    const element = byId(prefix + domName);
     if (element) element.value = value;
   }
 }
