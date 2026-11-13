@@ -151,7 +151,7 @@ def _apply_rigid_diaphragms(ops, inputs: Structure3DInputs) -> None:
             ops.rigidDiaphragm(3, master.id, *slaves)
 
 
-def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict) -> dict:
+def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict, *, second_order: bool = False) -> dict:
     ops.wipe()
     ops.model("basic", "-ndm", 3, "-ndf", 6)
 
@@ -178,7 +178,7 @@ def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict) -> dict:
 
         transf_tag = member.id
         vecxz = _safe_vecxz(start_n, end_n)
-        ops.geomTransf("Linear", transf_tag, *vecxz)
+        ops.geomTransf("PDelta" if second_order else "Linear", transf_tag, *vecxz)
         ops.element(
             "elasticBeamColumn", member.id, member.start_node, member.end_node,
             member.area_m2, e_pa, g_pa, member.j_m4, member.iy_m4, member.iz_m4, transf_tag,
@@ -216,7 +216,11 @@ def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict) -> dict:
     ops.numberer("RCM")
     ops.constraints("Transformation" if inputs.rigid_diaphragms else "Plain")
     ops.integrator("LoadControl", 1.0)
-    ops.algorithm("Linear")
+    if second_order:
+        ops.test("NormDispIncr", 1e-8, 50)
+        ops.algorithm("Newton")
+    else:
+        ops.algorithm("Linear")
     ops.analysis("Static")
 
     status = ops.analyze(1)
@@ -270,6 +274,7 @@ def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict) -> dict:
 
     return {
         "solver": "openseespy_3d_frame",
+        "analysis_order": "p_delta" if second_order else "first_order",
         "opensees_status": status,
         "load_combination": combo["name"],
         "load_factors": factors,
@@ -303,12 +308,37 @@ def analyze_3d_structure_opensees(inputs: Structure3DInputs) -> dict:
         }
 
     try:
+        if inputs.analysis_order not in ("first_order", "p_delta"):
+            raise ValueError("analysis_order must be first_order or p_delta.")
         combinations = _default_combinations(inputs)
-        combo_results = {combo["name"]: _run_static_combo(ops, inputs, combo) for combo in combinations}
+        nonlinear = inputs.analysis_order == "p_delta"
+        combo_results = {
+            combo["name"]: _run_static_combo(ops, inputs, combo, second_order=nonlinear)
+            for combo in combinations
+        }
         active_name = inputs.active_load_combination if inputs.active_load_combination in combo_results else combinations[0]["name"]
         active_result = dict(combo_results[active_name])
         active_result["combination_results"] = combo_results
         active_result["available_combinations"] = [combo["name"] for combo in combinations]
+        if nonlinear:
+            chosen = next(c for c in combinations if c["name"] == active_name)
+            first_order = _run_static_combo(ops, inputs, chosen, second_order=False)
+            u1 = first_order["max_translation_mm"]
+            u2 = active_result["max_translation_mm"]
+            active_result["second_order_verification"] = {
+                "method": "OpenSees elasticBeamColumn geometric PDelta transformation",
+                "first_order_max_translation_mm": u1,
+                "pdelta_max_translation_mm": u2,
+                "amplification_ratio": u2 / u1 if u1 > 1e-9 else None,
+                "first_order_solver_status": first_order["opensees_status"],
+                "pdelta_solver_status": active_result["opensees_status"],
+                "limitations": [
+                    "PDelta geometric transformation is not a full AISC 360-22 Chapter C direct analysis method.",
+                    "Geometric imperfections, stiffness reductions, P-delta member curvature effects, and notional loads require separate consideration.",
+                    "Verification compares maximum translation magnitudes; it is not a signed per-story drift ratio.",
+                    "Use physically realistic simultaneous gravity and lateral forces in the chosen combination.",
+                ],
+            }
         return active_result
 
     finally:

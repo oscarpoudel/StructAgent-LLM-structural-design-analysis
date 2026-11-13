@@ -193,7 +193,7 @@ class Structure3DInputs(BaseModel):
     load_combinations: list[LoadCombination3D] = Field(default_factory=list)
     active_load_combination: str | None = None
     rigid_diaphragms: bool = False
-
+    analysis_order: str = "first_order"  # first_order | p_delta
 
 # ---------------------------------------------------------------------------
 # Wind inputs (ASCE 7-22 simplified procedure)
