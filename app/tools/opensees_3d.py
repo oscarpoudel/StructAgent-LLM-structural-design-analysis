@@ -73,6 +73,8 @@ def _story_response(inputs: Structure3DInputs, nodal_displacements: dict[int, li
     for lower, upper in pairwise(levels):
         height = upper["elevation_m"] - lower["elevation_m"]
         paired_drifts = []
+        paired_x = []
+        paired_y = []
         lower_nodes_by_xy = {
             (round(node.x, 6), round(node.y, 6)): node
             for node in nodes_by_elevation[lower["elevation_m"]]
@@ -87,18 +89,31 @@ def _story_response(inputs: Structure3DInputs, nodal_displacements: dict[int, li
             dux = upper_disp[0] - lower_disp[0]
             duy = upper_disp[1] - lower_disp[1]
             paired_drifts.append((dux * dux + duy * duy) ** 0.5)
+            paired_x.append(abs(dux))
+            paired_y.append(abs(duy))
 
         if paired_drifts:
             drift = max(paired_drifts)
+            drift_x = max(paired_x)
+            drift_y = max(paired_y)
+            pairing = "matched_xy"
         else:
             dux = upper["avg_ux_mm"] - lower["avg_ux_mm"]
             duy = upper["avg_uy_mm"] - lower["avg_uy_mm"]
             drift = (dux * dux + duy * duy) ** 0.5
+            drift_x = abs(dux)
+            drift_y = abs(duy)
+            pairing = "average_fallback"
         story_drifts.append({
             "from_m": lower["elevation_m"],
             "to_m": upper["elevation_m"],
             "height_m": height,
             "drift_mm": drift,
+            "drift_x_mm": drift_x,
+            "drift_y_mm": drift_y,
+            "drift_ratio_x_delta_over_h": drift_x / (height * 1000.0) if height > 0 else None,
+            "drift_ratio_y_delta_over_h": drift_y / (height * 1000.0) if height > 0 else None,
+            "pairing_method": pairing,
             "drift_ratio": (height * 1000.0 / drift) if drift > 1e-9 else None,
             "drift_ratio_delta_over_h": drift / (height * 1000.0) if height > 0 else None,
         })
