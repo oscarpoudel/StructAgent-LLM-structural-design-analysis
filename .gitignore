@@ -73,3 +73,5 @@ scratch/
 coverage.xml
 .coverage.*
 htmlcov/
+# Local controller Access credentials
+/deploy/controller.env

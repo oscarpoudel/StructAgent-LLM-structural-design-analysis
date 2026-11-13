@@ -12,3 +12,6 @@ deploy/controller/.venv
 .venv
 analysis_history.db
 *.db
+
+# Never copy controller credentials into Docker build layers
+/deploy/controller.env
