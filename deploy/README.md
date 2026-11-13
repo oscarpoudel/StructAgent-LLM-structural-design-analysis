@@ -164,3 +164,14 @@ curl http://127.0.0.1:5000/health
 The last health URL only responds when compute is running. If the container was not recreated, use a controlled `docker compose --profile compute up -d --no-deps --force-recreate structagent` with the protected runtime Compose file while in maintenance mode. Never run `docker compose down -v`: that can destroy your SQLite volume.
 
 After startup, use a hard browser refresh so the latest `app/static/styles.css` and JS modules are loaded. The chat's **Steel Design** quick prompt invokes the Ollama input-extraction path, and the deterministic Python tool returns a trace report. If Ollama is unavailable, labeled values (e.g. `Mu=220`, `Vu=80`, `Lb=3`, `Fy=345`) can still be checked through a restricted deterministic parser. Do not assume an external model is reachable merely because the compute container is healthy.
+
+
+## Updated studio interface and local-force diagrams
+
+The new workspace layout places the ribbon tabs on a single row and grouped commands on another. If a monitor is narrow, scroll the ribbon command row horizontally to reach Import/Export or analysis controls. Switching tabs triggers ribbon height measurement and canvas resizing. The Results panel can be collapsed using **View → Expand Canvas**.
+
+After updating, **re-run existing 3D analyses** to populate the corrected OpenSees local member force components and new station diagram arrays. Prior stored results may have used global force vectors under local-looking labels; do not re-use those values as local member end actions. Open **View → Force Diagrams** or select a member and click **View Force Diagrams** in the left Properties panel. Select a load combination, an element and the desired result component, or export all station values to CSV.
+
+Project records can be inspected from dashboard cards, the project name in the top bar, or **Model → Project Info**. Names no longer revert to generic placeholders when a different saved version contains a descriptive name. To return to the project dashboard from an open model, use **Model → Projects**.
+
+Deployment is unchanged: stop active analyses, update `main`, then rerun `sudo bash deploy/install.sh --workspace-url https://structagent-app.oscarp.com.np/`. Hard-refresh the workspace once the new compute container has started.

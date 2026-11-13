@@ -62,3 +62,32 @@ Use the edition legally adopted by the project jurisdiction, plus amendments, an
 ## Outstanding engineering work
 
 A production design engine still requires full seismic/wind load procedures, modal response-spectrum analysis with complete directional combination treatment, per-member design capacity derivations, material nonlinear behavior where required, load-case and stability consistency checks, verified 3D benchmarks, report sign-off, and user/project isolation. Independent comparison with recognized structural software and analytical benchmarks is needed before relying on results for engineering decisions.
+
+
+## Local member force diagrams and coordinate-system verification
+
+**Code correction:** OpenSees `ops.eleForce(member)` returns the global resisting-force vector. For a 3D `elasticBeamColumn`, `ops.eleResponse(member, "localForce")` returns the twelve local end actions in the I/J order `[Ni, Vyi, Vzi, Ti, Myi, Mzi, Nj, Vyj, Vzj, Tj, Myj, Mzj]`. Never interchange local and global axes when designing or interpreting results.
+
+StructAgent now retains `global_member_forces` separately from `member_forces` (local), constructs `member_force_diagrams` for each load combination and frame member, and reports maximum absolute section actions for the selected combination. The viewer samples 41 equally spaced stations along each 3D member and supports CSV export.
+
+For a section measured a distance x from end I of a straight elastic element with uniform local transverse loads wy and wz, the local cut-resultant convention in the application is:
+
+```text
+N(x)  = -Ni
+Vy(x) = -Vyi - wy*x
+Vz(x) = -Vzi - wz*x
+T(x)  = -Ti
+My(x) = -Myi - Vzi*x - wz*x*x/2
+Mz(x) = -Mzi + Vyi*x + wy*x*x/2
+```
+
+Units are kN, kN-m, kN/m and metres as applicable. Local end action signs are those given by the OpenSees coordinate transformation. These formulas assume full-length uniform member loads, no axial distributed load, no interior point element loads, and the implemented linear-elastic element. End-equilibrium residuals are included to help detect inconsistencies. For geometric P-delta analyses, separate validation of the internal section force distribution is required.
+
+**Reference benchmark:** a simply supported 6 m beam under a constant local `wy = -10 kN/m` load has `Vi = Vj = 30 kN`, `Mz(0) = Mz(6) = 0` and a midspan internal sagging moment `Mz(3) = 45 kN-m`. The automated benchmark checks this curve, endpoint equilibrium and other axial/shear/bending cases. The test suite also checks a real OpenSeesPy element and all diagram fields.
+
+Official references:
+
+- [OpenSees elasticBeamColumn element documentation](https://opensees.berkeley.edu/wiki/index.php/Elastic_Beam_Column_Element)
+- [OpenSees full-span 3D local beam-uniform load definition](https://opensees.github.io/OpenSeesDocumentation/user/manual/model/pattern/PlainPatternloadcommands/eleLoad.html)
+
+**Limitations:** output from a single selected load combination does not constitute an envelope; member section capacities, geometric imperfections, direction-dependent stability and all other code criteria require independent verification. Previous saved analysis outputs produced by older StructAgent revisions may have mislabeled global forces. Re-run those analyses under the updated solver before relying on local force tables.

@@ -15,6 +15,28 @@ For portable Ubuntu installation, configuration, existing Cloudflare Tunnel rout
 ---
 
 
+## ETABS-style workspace and local force diagrams
+
+The StructAgent studio has a compact two-level ribbon: **Model**, **Loads**, **Design**, **Analyze** and **View** tabs on the first line and grouped commands on the second. Command groups scroll horizontally on narrower displays rather than being clipped. The drawing canvas automatically adjusts its top offset when the selected ribbon changes. The Results panel has a persistent header, a responsive metric grid and controls to collapse the panel for more modeling space. **View → Expand Canvas / Show Results** toggles that layout.
+
+### Frame force diagrams after analysis
+
+1. Build a 3D frame, assign member sections, restraints and a load combination, then click **Analyze → Analyze**.
+2. Open **View → Force Diagrams** or **Results → Diagrams**. Alternatively, select a frame member and choose **View Force Diagrams** in its Properties panel.
+3. Select an analyzed load combination and member. Choose **All six components** or one from **Axial N, Shear Vy, Shear Vz, Bending My, Bending Mz, Torsion T**.
+4. Use **Export Diagram CSV** to download section-resultant values at 41 stations along the member's I-to-J local axis.
+5. To color the 3D frame by a single result type, use **View → Forces** and select an individual component. Color normalization now compares only values with the same physical units.
+
+**Engineering correction:** OpenSees `eleForce` returns **global** element forces. Earlier releases labeled those components as local end axial/shear/moment forces, which was incorrect for members not aligned with global axes. The backend now obtains local values from `ops.eleResponse(member_id, "localForce")`, retains global forces separately under `global_member_forces`, and constructs local section diagrams by equilibrium for the implemented `elasticBeamColumn` with full-length uniform local member loads. The station diagrams explicitly identify the local axes and force-sign convention. See [Engineering verification](docs/ENGINEERING_VALIDATION.md).
+
+This is a **preliminary engineering visualization**, not full ETABS feature parity, nonlinear force integration, a connection design tool, or a code-compliant load-envelope generator. Interior concentrated element loads, nonlinear sections, detailed capacity envelopes and arbitrary staged construction are not supported by this diagram method. The geometric P-delta option requires further validation of the section distributions.
+
+### Project names and accessible project records
+
+When creating a new project, enter a descriptive project name in the **Project Information** step and press **Create Project & Start Drawing**. The dashboard displays the saved name, project number and key metadata, and each card has an expandable **Project information** section. Once the workspace is open, click the **project name in the top bar** or **Model → Project Info** to edit details. **Model → Projects** saves the current project and returns to the dashboard.
+
+Project synchronization now prioritizes a descriptive name over a stale `New Project` or `Untitled Project` browser record. A backend/API regression test verifies that naming and renaming survive SQLite persistence. Existing placeholder-named projects are not automatically renamed; edit them through **Project Info** to supply their intended names. Browser updates require redeploying the Docker image and performing a hard refresh to load the new JavaScript modules.
+
 ## Project creation and workspace layout
 
 Click **New Project** on the app dashboard. The wizard now requests a required **project name** and optional project number, client, engineer/preparer, project location, structure type, reference standard and design notes. Grid spacings and story elevations are configured beneath the project information. The project is **not saved** until the required name, X/Y grid spacings and valid story elevations are confirmed with **Create Project & Start Drawing**; Cancel discards the draft.
