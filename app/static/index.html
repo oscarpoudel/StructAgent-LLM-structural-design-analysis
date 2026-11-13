@@ -92,7 +92,9 @@
           <option value="truss">Truss</option>
         </select>
         <select id="loadComboSelect" class="ribbon-select" title="Load combination"></select>
+        <button type="button" id="asceComboBtn" class="ribbon-btn" title="Create representative ASCE 7-22 strength combinations">ASCE Combos</button>
         <label class="ribbon-chk" title="Rigid floor diaphragms"><input type="checkbox" id="rigidDiaphragmToggle" checked/> Diaphragms</label>
+        <label class="ribbon-chk" title="Geometric PDelta transformation, not complete AISC Chapter C analysis"><input type="checkbox" id="secondOrderToggle"/> P-Delta (3D)</label>
       </div>
       <div class="ribbon-group">
         <p class="ribbon-group-title">Run</p>
@@ -847,6 +849,7 @@
               <option value="masonry_other">Other masonry shear wall</option>
             </select>
           </label>
+          <label>Drift direction<select id="codeDirection"><option value="x">Global X</option><option value="y">Global Y</option><option value="resultant">Resultant screening</option></select></label>
           <label>Deflection amplification Cd
             <input id="codeCd" type="number" value="5.5" min="0.01" max="20" step="0.1"/>
           </label>
@@ -869,6 +872,21 @@
         </div>
         <div class="code-review-actions"><button type="button" class="btn-secondary" id="codeRunDeflection">Check member deflection</button></div>
         <div id="codeDeflectionResults" class="code-check-results" role="status" aria-live="polite">Enter service-load displacement and the applicable project criterion.</div>
+      </section>
+      <section class="code-check-card interaction-card">
+        <div class="code-check-heading"><span class="code-check-index">03</span><div><h3>Steel axial and biaxial interaction</h3><p>ANSI/AISC 360-22 H1-1a and H1-1b</p></div></div>
+        <p class="code-review-note">Enter required strengths and separately established available strengths. The form does not calculate axial, flexural or stability capacities.</p>
+        <div class="code-review-fields">
+          <label>Force type<select id="h1Type"><option value="compression">Compression</option><option value="tension">Tension</option></select></label>
+          <label>Required axial Pr (kN)<input id="h1P" type="number" min="0" value="300"/></label>
+          <label>Available axial Pc (kN)<input id="h1Pc" type="number" min="0.001" value="1200"/></label>
+          <label>Required Mx (kN-m)<input id="h1Mx" type="number" min="0" value="100"/></label>
+          <label>Available Mcx (kN-m)<input id="h1Mcx" type="number" min="0.001" value="300"/></label>
+          <label>Required My (kN-m)<input id="h1My" type="number" min="0" value="25"/></label>
+          <label>Available Mcy (kN-m)<input id="h1Mcy" type="number" min="0.001" value="150"/></label>
+        </div>
+        <div class="code-review-actions"><button type="button" class="btn-secondary" id="codeRunH1">Check H1 interaction</button></div>
+        <div id="codeH1Results" class="code-check-results" role="status" aria-live="polite">Enter member demands and verified available strengths.</div>
       </section>
     </div>
   </div>
