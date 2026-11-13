@@ -26,6 +26,8 @@ services:
     environment:
       STRUCTAGENT_DB_PATH: /app/data/analysis_history.db
       APP_ENV: production
+      AGENT_LLM_PROVIDER: ollama
+      AGENT_LLM_TIMEOUT_S: "90"
     volumes:
       - structagent_data:/app/data
     extra_hosts:

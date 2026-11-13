@@ -30,7 +30,7 @@ docker compose version >/dev/null
 [[ -f "$DEPLOY_DIR/.env" ]] || { echo "Create and configure deploy/.env first" >&2; exit 1; }
 [[ -f "$DEPLOY_DIR/controller.env" ]] || {
   echo "Create deploy/controller.env from controller.env.example first." >&2
-  echo "Cloudflare Access credentials and an approved email are required for Start/Stop." >&2
+  echo "Create deploy/controller.env for the public demo first." >&2
   exit 1
 }
 if ! id -u structagentctl >/dev/null 2>&1; then
@@ -46,6 +46,10 @@ docker build -t structagent-local:latest -f "$SOURCE_DIR/Dockerfile" "$SOURCE_DI
 install -d -o root -g root -m 0755 "$ETC" "$RUNTIME" "$RUNTIME/gateway" "$RUNTIME/gateway/site" "$CTR"
 install -o root -g root -m 0600 "$DEPLOY_DIR/.env" "$ETC/compute.env"
 install -o root -g root -m 0600 "$DEPLOY_DIR/controller.env" "$ETC/controller.env"
+if grep -q "^ADMIN_TOKEN=replace-with" "$ETC/controller.env"; then
+  echo "Set a secure ADMIN_TOKEN in deploy/controller.env before installation." >&2
+  exit 1
+fi
 install -o root -g root -m 0644 "$DEPLOY_DIR/runtime/compose.yaml" "$RUNTIME/compose.yaml"
 install -o root -g root -m 0644 "$DEPLOY_DIR/runtime/Caddyfile" "$RUNTIME/gateway/Caddyfile"
 install -o root -g root -m 0644 "$DEPLOY_DIR/gateway/site/index.html" "$RUNTIME/gateway/site/index.html"
@@ -87,5 +91,5 @@ echo "Protected runtime: $RUNTIME"
 echo "Landing page: http://localhost:8090"
 echo "Workspace (only when compute running): http://localhost:8091"
 echo "Cloudflare Tunnel is not installed or modified."
-echo "The controller requires valid Cloudflare Access identity before Start/Stop."
+echo "Public demo enabled. Start is public; manual Stop requires ADMIN_TOKEN."
 echo "Check: systemctl status structagent-controller --no-pager"

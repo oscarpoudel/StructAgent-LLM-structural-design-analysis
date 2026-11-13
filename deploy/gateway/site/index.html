@@ -13,12 +13,12 @@ button:disabled{opacity:.45;cursor:not-allowed}[hidden]{display:none!important}#
 <body><main>
 <small>STRUCTAGENT / STRUCTURAL ANALYSIS</small>
 <h1>Engineering compute on demand</h1>
-<p>OpenSeesPy structural analysis, 3D modeling and AI-assisted engineering. Compute is kept offline until an authorized session starts it. Your existing Ollama server is used for inference.</p>
+<p>OpenSeesPy structural analysis, 3D modeling and AI-assisted engineering. Compute is kept offline until a visitor requests a shared demo session. Your existing Ollama server is used for inference.</p>
 <div id="status" role="status" aria-live="polite">Checking compute status...</div>
 <button id="start" disabled>Start workspace</button>
-<button id="stop" disabled>Stop workspace</button>
+
 <a class="action" id="open" href="https://app.structagent.example.com/" hidden>Open workspace</a>
-<p><small>Access is restricted to authorized Cloudflare Access identities. This site is intended for preliminary engineering analysis, not final professional approval.</small></p>
+<p><small>This is a public shared demonstration. Do not upload confidential projects or personal information. This site is intended for preliminary engineering analysis, not final professional approval.</small></p>
 </main>
 <script>
 const el=id=>document.getElementById(id);
@@ -33,16 +33,14 @@ async function refresh(){
     const d=await request("status");
     el("status").textContent="Compute: "+d.state+(d.detail?" - "+d.detail:"");
     el("start").disabled=d.state!=="stopped";
-    el("stop").disabled=!["ready","starting","failed"].includes(d.state);
     el("open").hidden=d.state!=="ready";
-  }catch(e){el("status").textContent="Unable to retrieve status: "+e.message;el("start").disabled=true;el("stop").disabled=true;el("open").hidden=true}
+  }catch(e){el("status").textContent="Unable to retrieve status: "+e.message;el("start").disabled=true;el("open").hidden=true}
 }
 async function action(which){
-  el("start").disabled=true;el("stop").disabled=true;
+  el("start").disabled=true;
   try{await request(which,"POST")}catch(e){el("status").textContent=e.message}
   await refresh();
 }
 el("start").onclick=()=>action("start");
-el("stop").onclick=()=>action("stop");
 refresh();setInterval(refresh,5000);
 </script></body></html>

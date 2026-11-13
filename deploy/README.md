@@ -1,60 +1,67 @@
-# Portable on-demand StructAgent installation
+# StructAgent public demo: on-demand compute
 
-The project can be cloned **anywhere**, including `~/My_projects/structagent`. No path editing is necessary. Run the installer from the repository root. It detects the checkout path, builds the app image, and installs a **protected, root-owned runtime snapshot** under `/var/lib/structagent`. Your original Git checkout stays in your home directory and remains editable. The privileged supervisor only reads this protected runtime snapshot, never a user-editable Compose file.
+Visitors can view the landing page and request a shared StructAgent workspace without signing in. The existing host Cloudflare Tunnel exposes HTTPS. Cloudflare Access is **not required**. A root-owned, immutable runtime snapshot prevents the public controller from editing the Docker stack.
 
-The installer does **not** install cloudflared or Ollama. Reuse your existing host Cloudflare Tunnel and external Ollama service, with an optional `OLLAMA_BEARER_TOKEN`.
+The system runs one shared Flask instance, not isolated per-user containers. It is a **limited public demonstration**, not a production multi-tenant service. All visitors to the running app may access common analysis history and projects. Do not use this mode for confidential data.
 
-## One-time setup
-
-1. Ensure Ubuntu/Linux with Docker Engine, Compose plugin, `python3-venv`, `sudo`, `visudo` and systemd.
-2. From your cloned repository, run:
-   ```bash
-   cd ~/My_projects/structagent
-   cp deploy/.env.example deploy/.env
-   cp deploy/controller.env.example deploy/controller.env
-   ```
-3. Edit `deploy/.env`: set `APP_SECRET_KEY`, existing `OLLAMA_BASE_URL`, installed `OLLAMA_MODEL`, optional `OLLAMA_BEARER_TOKEN` (no `Bearer ` prefix). Secure both local env files with `chmod 600 deploy/.env deploy/controller.env`.
-4. Edit `deploy/controller.env`: fill `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `CF_ALLOWED_EMAILS`, and `ALLOWED_ORIGINS`. The controller **requires Cloudflare Access**, which is separate from Cloudflare Tunnel. A public tunnel alone does not authenticate button presses. Use one Access application covering both landing and workspace domains so the JWT audience matches.
-5. Install:
-   ```bash
-   sudo bash deploy/install.sh --workspace-url https://app.structagent.oscarpoudel.com.np/
-   ```
-   For a local-only landing-page smoke test, omit `--workspace-url`, in which case it defaults to `http://localhost:8091/`. **Local browser Start/Stop is not supported without authenticated Cloudflare Access**. The installer does not bypass authentication.
-6. Your existing host-installed Cloudflare Tunnel should route `structagent.oscarpoudel.com.np` to `http://127.0.0.1:8090` and `app.structagent.oscarpoudel.com.np` to `http://127.0.0.1:8091`. Your existing tunnel is not reinstalled or changed by the installer. Both local ports bind only to loopback. These are examples; adjust domains to your own.
-7. Open the landing page through Access. Press Start to launch the Flask container; Stop or idle timeout ends it. The landing gateway and controller remain active.
-
-The installer snapshots the compute container's environment into `/etc/structagent/compute.env` and the controller configuration into `/etc/structagent/controller.env`, both root-readable only. Local Git changes do not affect the running server until the installer runs again. Back up the named SQLite volume `structagent_structagent_data` before major upgrades.
-
-## Update after pulling from GitHub
+## Install from any checkout directory
 
 ```bash
 cd ~/My_projects/structagent
 git switch main
 git pull --ff-only origin main
+# If deploy/.env already exists, keep it instead of overwriting it.
+test -f deploy/.env || cp deploy/.env.example deploy/.env
+cp deploy/controller.env.example deploy/controller.env
+nano deploy/.env
+nano deploy/controller.env
+chmod 600 deploy/.env deploy/controller.env
 sudo bash deploy/install.sh --workspace-url https://app.structagent.oscarpoudel.com.np/
 ```
 
-**Do not reinstall while a structural analysis is running.** The installer rebuilds the image and recreates the always-on gateway; existing compute remains in its current state until stopped/recreated. Changes to installed images or env become active on the next compute start, after the old container has been recreated. For a clean update, stop compute first using the UI or a controlled maintenance operation.
+Set `APP_SECRET_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, and optional `OLLAMA_BEARER_TOKEN` in `deploy/.env`. For `deploy/controller.env`, the example has both allowed HTTPS origins and idle settings; replace `ADMIN_TOKEN` with a random token generated via:
 
-## Troubleshooting
+```bash
+python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+```
+
+This admin secret must not be exposed in the landing page or shared with public visitors. A public visitor may Start, but cannot invoke the manual Stop endpoint. Automatic idle and maximum-session shutdowns still work.
+
+The installer uses your current checkout wherever it lives to build the image, then copies the deployment files to protected paths under `/var/lib/structagent` and `/etc/structagent`. The controller runs as `structagentctl`, without Docker group membership. The root-owned supervisor accepts only a fixed start, stop and status command.
+
+### Existing Cloudflare Tunnel
+
+Configure **two public hostname routes in your existing host tunnel**:
+
+| Public hostname | HTTP service URL |
+| --- | --- |
+| `structagent.oscarpoudel.com.np` | `http://127.0.0.1:8090` |
+| `app.structagent.oscarpoudel.com.np` | `http://127.0.0.1:8091` |
+
+These are separate hostnames because the landing page must remain available while the workspace is stopped. Do not create a cloudflared container. Port 8080 is not used by the new installed runtime.
+
+If a previous development gateway is still listening on 8090 or 8091, stop the old Compose gateway before installation. Do not shut down unrelated services.
+
+### Test locally
 
 ```bash
 systemctl status structagent-controller --no-pager
-journalctl -u structagent-controller -n 50 --no-pager
-curl -i http://127.0.0.1:8090/
 curl -i http://127.0.0.1:8765/api/session/status
+curl -i http://127.0.0.1:8090/
 docker compose -f /var/lib/structagent/runtime/compose.yaml ps -a
 ```
 
-Without an Access JWT, a running controller correctly returns HTTP 401 JSON. Caddy should proxy that 401, not 502. A 502 on `/api/session/status` means the host controller is not reachable.
+The status endpoint now returns JSON without Cloudflare Access. The **Start** endpoint requires the expected Origin and custom header. Test through the real HTTPS landing page, not a bare `curl` without Origin. After Start, Open Workspace navigates to the second domain. The compute container stops after `IDLE_SECONDS` without heartbeat (default 1800 seconds) or at `MAX_SESSION_SECONDS` (default 7200 seconds) regardless of activity. A global 300-second startup cooldown limits rapid restart attempts.
 
-The installed gateway listens on **8090** and the workspace gateway on **8091**, avoiding port 8080. Flask listens internally at `127.0.0.1:5000`, and the controller at `127.0.0.1:8765`. No new Cloudflare Tunnel token is required.
+### Updates
 
-## Security and limitations
+Stop active analyses first. Then `git pull --ff-only origin main`, followed by the same `sudo bash deploy/install.sh --workspace-url ...` command. Reinstallation snapshots changed files. Recreate an old stopped compute container if necessary before checking new image behavior.
 
-- Controller uses a validated Cloudflare Access JWT, email allowlist, POST Origin check and custom action header. A Tunnel token is not a substitute.
-- Do not give the web controller Docker group membership or expose the Docker socket. The only sudo permissions are start, stop and status of the root-owned runtime stack.
-- The installer **must** be trusted, because it runs as root and copies the checkout into protected destinations. Only execute it from a trusted revision.
-- A browser heartbeat tracks visible tabs; it does **not** protect long-running analyses from stop or hard maximum session timeout. The controller manages one compute instance, not per-user isolated projects.
-- Existing Ollama is not shut down by StructAgent's idle timeout; manage GPU model unloading separately.
-- The controller reconciles its initial state with Docker on restart, but that check does not replace a fully durable job/session scheduler.
+### Public demo safety limitations
+
+- **A public Start action is not intrinsically abuse-proof.** Its Origin check, one-instance gate, and global startup cooldown reduce accidental or repeated starts, but clients can spoof Origin. Add Cloudflare WAF rate limits and Turnstile before promoting this to an uncontrolled public demonstration. Origin checking is not authentication.
+- The application has shared SQLite history and projects. Other visitors can see or modify shared data. Per-visitor isolation is not implemented.
+- The heartbeat only tracks a visible browser workspace; a long-running structural analysis may not count as activity. Hard session timeout can interrupt calculations.
+- No resource quotas, task queue, or per-user execution limits have been added to the Flask application. Restrict public usage until those safeguards are implemented.
+- This deployment never manages your existing external Ollama server. GPU memory may remain allocated independently.
+- Keep loopback ports, Docker socket, credentials, and the admin token inaccessible from the public internet.
