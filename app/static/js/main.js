@@ -90,6 +90,31 @@ async function loadProjectGrid() {
       }
       card.appendChild(stats);
 
+      const more = document.createElement('details');
+      more.className = 'project-card-details';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Project information';
+      more.appendChild(summary);
+      const metadataFields = [
+        ['Project number', metadata.projectNumber], ['Client', metadata.client],
+        ['Engineer', metadata.engineer], ['Location', metadata.location],
+        ['Structure type', metadata.structureType], ['Reference code', metadata.codeBasis],
+        ['Description', metadata.description],
+      ].filter(([, value]) => String(value || '').trim());
+      if (!metadataFields.length) {
+        const placeholder = document.createElement('p');
+        placeholder.textContent = 'No additional information has been recorded. Open the project and select Project Info to add details.';
+        more.appendChild(placeholder);
+      }
+      metadataFields.forEach(([label, value]) => {
+        const field = document.createElement('p');
+        const strong = document.createElement('strong');
+        strong.textContent = label + ': ';
+        field.append(strong, document.createTextNode(String(value)));
+        more.appendChild(field);
+      });
+      card.appendChild(more);
+
       const date = document.createElement('div');
       date.className = 'project-card-date';
       date.textContent = 'Updated ' + new Date(proj.updatedAt || proj.createdAt || Date.now()).toLocaleDateString();
@@ -128,6 +153,7 @@ async function openProject(id) {
     if (!proj) return;
     currentProject = proj;
     loadProjectIntoState(proj);
+    lastSavedSnapshot = JSON.stringify(proj);
     showDrawPage();
   } catch (err) {
     console.error('Failed to open project:', err);
@@ -197,7 +223,8 @@ function showDrawPage() {
   byId('ribbon').style.display = 'block';
   byId('projectBadge').style.display = 'flex';
 
-  byId('projectName').textContent = currentProject.name;
+  byId('projectName').textContent = currentProject.name || 'Untitled Project';
+  byId('projectName').title = 'Project Information: ' + (currentProject.name || 'Untitled Project');
   updatePlanLevelSelect();
 
   if (!drawPageInitialized) {
@@ -313,6 +340,21 @@ function initSetupPage() {
   byId('editProjectDetailsBtn').addEventListener('click', () => {
     if (currentProject) openProjectDetailsEditor();
   });
+  byId('projectInfoBtn').addEventListener('click', () => {
+    if (currentProject) openProjectDetailsEditor();
+  });
+  byId('projectName').addEventListener('click', () => {
+    if (currentProject) openProjectDetailsEditor();
+  });
+  byId('backToProjectsBtn').addEventListener('click', async () => {
+    try {
+      await persistCurrentProject({force:true});
+      showLandingPage();
+      loadProjectGrid();
+    } catch (error) {
+      alert('Project could not be saved: ' + error.message);
+    }
+  });
 
   byId('projectEditClose').addEventListener('click', closeProjectDetailsEditor);
   byId('projectEditCancel').addEventListener('click', closeProjectDetailsEditor);
@@ -333,6 +375,7 @@ function initSetupPage() {
     try {
       await persistCurrentProject({ force: true });
       byId('projectName').textContent = currentProject.name;
+      byId('projectName').title = 'Project Information: ' + currentProject.name;
       closeProjectDetailsEditor();
     } catch (error) {
       byId('projectEditError').textContent = 'Could not save project information: ' + error.message;
