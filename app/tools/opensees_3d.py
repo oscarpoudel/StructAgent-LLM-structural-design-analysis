@@ -4,6 +4,7 @@ import copy
 from itertools import pairwise
 
 from app.models import Structure3DInputs
+from app.tools.member_diagrams import local_member_force_diagram
 
 _SUPPORT_PRESETS = {
     "roller": {"ux": False, "uy": False, "uz": True, "rx": False, "ry": False, "rz": False},
@@ -252,19 +253,41 @@ def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict, *, second_ord
             }
 
     member_forces = {}
+    global_member_forces = {}
     member_force_summary = {}
+    member_force_diagrams = {}
     for member in inputs.members:
         mid = member.id
-        forces = ops.eleForce(mid)
-        member_forces[mid] = [f / 1000.0 for f in forces]
+        global_forces = ops.eleForce(mid)
+        # IMPORTANT: eleForce is in GLOBAL axes. Use localForce for the
+        # engineering axial, shear, torsion and bending components.
+        local_forces = ops.eleResponse(mid, "localForce")
+        if not local_forces or len(local_forces) != 12:
+            raise ValueError(f"OpenSees did not provide 12 localForce components for member {mid}.")
+        local = [f / 1000.0 for f in local_forces]
+        global_member_forces[mid] = [f / 1000.0 for f in global_forces]
+        member_forces[mid] = local
+
+        start_node = nodes_by_id[member.start_node]
+        end_node = nodes_by_id[member.end_node]
+        length = math.dist(
+            (start_node.x, start_node.y, start_node.z),
+            (end_node.x, end_node.y, end_node.z),
+        )
+        wy = sum(load.wy_kn_per_m * factors.get(load.case, 0.0)
+                 for load in inputs.member_loads if load.member_id == mid)
+        wz = sum(load.wz_kn_per_m * factors.get(load.case, 0.0)
+                 for load in inputs.member_loads if load.member_id == mid)
+        diagram = local_member_force_diagram(local, length, wy_kn_per_m=wy, wz_kn_per_m=wz)
+        member_force_diagrams[mid] = diagram
         member_force_summary[mid] = {
             "group": member.group,
-            "max_abs_axial_kn": max(abs(forces[0]), abs(forces[6])) / 1000.0,
-            "max_abs_shear_y_kn": max(abs(forces[1]), abs(forces[7])) / 1000.0,
-            "max_abs_shear_z_kn": max(abs(forces[2]), abs(forces[8])) / 1000.0,
-            "max_abs_torsion_kn_m": max(abs(forces[3]), abs(forces[9])) / 1000.0,
-            "max_abs_moment_y_kn_m": max(abs(forces[4]), abs(forces[10])) / 1000.0,
-            "max_abs_moment_z_kn_m": max(abs(forces[5]), abs(forces[11])) / 1000.0,
+            "max_abs_axial_kn": diagram["ranges"]["N"]["max_abs"],
+            "max_abs_shear_y_kn": diagram["ranges"]["Vy"]["max_abs"],
+            "max_abs_shear_z_kn": diagram["ranges"]["Vz"]["max_abs"],
+            "max_abs_torsion_kn_m": diagram["ranges"]["T"]["max_abs"],
+            "max_abs_moment_y_kn_m": diagram["ranges"]["My"]["max_abs"],
+            "max_abs_moment_z_kn_m": diagram["ranges"]["Mz"]["max_abs"],
         }
 
     max_translation_mm = max(
@@ -293,6 +316,9 @@ def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict, *, second_ord
         "reactions": nodal_reactions,
         "base_reactions": base_reactions,
         "member_forces": member_forces,
+        "global_member_forces": global_member_forces,
+        "member_force_diagrams": member_force_diagrams,
+        "force_coordinate_system": "local (member_forces and diagrams); global_member_forces separately",
         "member_force_summary": member_force_summary,
         "story_response": _story_response(inputs, nodal_displacements),
         "max_translation_mm": max_translation_mm,
