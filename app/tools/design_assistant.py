@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import re
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -65,30 +64,11 @@ def is_design_request(message: str) -> bool:
                 and re.search(r"\b(beam|column|steel|h1)\b", message, re.I))
 
 
-def _num_in_user_request(value: float, message: str) -> bool:
-    """Reject numeric values invented by the extraction model.
-
-    The model may only reuse a number literally present in the input.
-    Scientific notation is accepted; derived unit conversions are intentionally
-    not accepted because they can mask guessed capacities.
-    """
-    if not math.isfinite(value):
-        return False
-    numbers = re.findall(r"(?<![\w.])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?", message)
-    for token in numbers:
-        try:
-            if math.isclose(float(token), value, abs_tol=1e-9, rel_tol=1e-9):
-                return True
-        except ValueError:
-            continue
-    return False
-
-
 def _literal_inputs(message: str) -> dict[str, float]:
     values = {}
     for field, aliases in LABELS.items():
         for alias in aliases:
-            pattern = rf"(?<!\w){re.escape(alias)}(?!\w)\s*(?:=|:|is)\s*{NUMERIC}"
+            pattern = rf"(?<!\w){re.escape(alias)}(?!\w)\s*(?:=|:|is|of)\s*{NUMERIC}"
             match = re.search(pattern, message, flags=re.IGNORECASE)
             if match:
                 values[field] = float(match.group(1))
@@ -143,17 +123,10 @@ def respond_to_design_request(message: str, llm: Any) -> dict[str, Any]:
         return {"message": "Please shorten the design request to 2000 characters.", "source": "validation"}
     parsed = _llm_extract(message, llm)
     action = parsed.get("action") if parsed.get("action") in REQUIRED else _choose_action(message)
+    # Only explicitly labeled numeric values can reach a solver. Ollama
+    # chooses the operation, but guessed values are never executable inputs.
     literal = _literal_inputs(message)
-    extracted: dict[str, float] = {}
-    for field in REQUIRED[action]:
-        if field in literal:
-            extracted[field] = literal[field]
-            continue
-        candidate = parsed.get(field)
-        if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
-            numeric = float(candidate)
-            if _num_in_user_request(numeric, message):
-                extracted[field] = numeric
+    extracted = {field: literal[field] for field in REQUIRED[action] if field in literal}
 
     missing = [field for field in REQUIRED[action] if field not in extracted]
     if missing:
@@ -228,9 +201,10 @@ def respond_to_design_request(message: str, llm: Any) -> dict[str, Any]:
     ]
     return {
         "message": summary + " This result was calculated by Python, not generated numerically by Ollama.",
-        "source": "ollama_assisted_deterministic_design",
+        "source": "ollama_assisted_deterministic_design" if parsed else "deterministic_labeled_input_fallback",
         "design_result": {
             "tool": action, "reference": reference, "inputs": extracted,
+            "input_extraction": "explicitly_labeled_numbers_only",
             "result": data, "limitations": limitations, "timestamp_utc": stamp,
             "input_sha256": digest,
         },
