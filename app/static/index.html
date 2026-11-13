@@ -149,14 +149,69 @@
 <main id="setupPage" class="page setup-page hidden">
   <div class="setup-inner">
     <div class="setup-header">
-      <h1>Configure Structure</h1>
-      <p>Define grid lines and story levels for your building</p>
+      <p class="setup-eyebrow">PROJECT WORKSPACE</p>
+      <h1>Create a Structural Project</h1>
+      <p>Record your project information, then define the grid and story elevations before modeling.</p>
     </div>
     <div class="setup-steps">
-      <!-- Step 1: Grid Lines -->
-      <div class="setup-step" id="stepGrid">
+      <!-- Step 1: Project details -->
+      <section class="setup-step" id="stepProjectDetails" aria-labelledby="setupDetailsTitle">
         <div class="step-header">
           <span class="step-number">1</span>
+          <h2 id="setupDetailsTitle">Project Information</h2>
+          <span class="step-caption">Required name and optional project record</span>
+        </div>
+        <div class="step-body">
+          <div class="setup-details-grid">
+            <label class="setup-field">Project name <span class="required-mark">Required</span>
+              <input id="setupProjectName" class="input-field" type="text" maxlength="120" required
+                     placeholder="e.g. Three-story steel office building" autocomplete="off"/>
+            </label>
+            <label class="setup-field">Project number / reference
+              <input id="setupProjectNumber" class="input-field" type="text" maxlength="80"
+                     placeholder="e.g. SE-2026-041"/>
+            </label>
+            <label class="setup-field">Client / organization
+              <input id="setupProjectClient" class="input-field" type="text" maxlength="120"
+                     placeholder="Client or institution"/>
+            </label>
+            <label class="setup-field">Engineer / prepared by
+              <input id="setupProjectEngineer" class="input-field" type="text" maxlength="120"
+                     placeholder="Design team or author"/>
+            </label>
+            <label class="setup-field">Project location
+              <input id="setupProjectLocation" class="input-field" type="text" maxlength="160"
+                     placeholder="City, region, country"/>
+            </label>
+            <label class="setup-field">Structure type
+              <select id="setupProjectStructureType" class="input-field">
+                <option value="building">Building / frame</option>
+                <option value="industrial">Industrial structure</option>
+                <option value="bridge">Bridge / infrastructure</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label class="setup-field">Reference design standard
+              <select id="setupProjectCodeBasis" class="input-field">
+                <option value="ASCE 7-22">ASCE 7-22</option>
+                <option value="ASCE 7-16">ASCE 7-16</option>
+                <option value="Eurocodes">Eurocodes</option>
+                <option value="NBC Nepal">NBC Nepal</option>
+                <option value="Other / project-specific">Other / project-specific</option>
+              </select>
+            </label>
+            <label class="setup-field setup-field-wide">Project description / design notes
+              <textarea id="setupProjectDescription" class="input-field" rows="3" maxlength="1200"
+                        placeholder="Brief scope, intended use, structural system, assumptions or design constraints"></textarea>
+            </label>
+          </div>
+          <p class="setup-advisory">The selected code is project metadata, not a change to the analysis engine. Code checks use their individually documented editions and require engineering verification.</p>
+        </div>
+      </section>
+      <!-- Step 2: Grid Lines -->
+      <section class="setup-step" id="stepGrid">
+        <div class="step-header">
+          <span class="step-number">2</span>
           <h2>Grid Lines</h2>
         </div>
         <div class="step-body">
@@ -164,7 +219,7 @@
             <div class="grid-axis">
               <label>X-Axis Grid Lines (spacing in meters)</label>
               <div class="grid-inputs">
-                <input type="text" id="gridXSpacings" placeholder="e.g. 6, 6, 8, 8, 6" class="input-field"/>
+                <input type="text" id="gridXSpacings" placeholder="e.g. 6, 6, 8, 8, 6" value="6, 6, 6" class="input-field"/>
                 <button id="applyGridXBtn" class="btn-xs">Apply</button>
               </div>
               <div id="gridXPreview" class="grid-preview"></div>
@@ -172,7 +227,7 @@
             <div class="grid-axis">
               <label>Y-Axis Grid Lines (spacing in meters)</label>
               <div class="grid-inputs">
-                <input type="text" id="gridYSpacings" placeholder="e.g. 7, 7, 7" class="input-field"/>
+                <input type="text" id="gridYSpacings" placeholder="e.g. 7, 7, 7" value="7, 7" class="input-field"/>
                 <button id="applyGridYBtn" class="btn-xs">Apply</button>
               </div>
               <div id="gridYPreview" class="grid-preview"></div>
@@ -180,18 +235,18 @@
           </div>
           <div class="grid-quick">
             <span>Quick:</span>
-            <button class="btn-xs" data-grid="6,6,6,6" data-axis="x">4×6m</button>
-            <button class="btn-xs" data-grid="8,8,8" data-axis="x">3×8m</button>
-            <button class="btn-xs" data-grid="6,6,6,6" data-axis="y">4×6m</button>
-            <button class="btn-xs" data-grid="8,8,8" data-axis="y">3×8m</button>
+            <button class="btn-xs" data-grid="6,6,6,6" data-axis="x">X: 4 bays × 6 m</button>
+            <button class="btn-xs" data-grid="8,8,8" data-axis="x">X: 3 bays × 8 m</button>
+            <button class="btn-xs" data-grid="6,6,6,6" data-axis="y">Y: 4 bays × 6 m</button>
+            <button class="btn-xs" data-grid="8,8,8" data-axis="y">Y: 3 bays × 8 m</button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Step 2: Story Levels -->
-      <div class="setup-step" id="stepLevels">
+      <!-- Step 3: Story Levels -->
+      <section class="setup-step" id="stepLevels">
         <div class="step-header">
-          <span class="step-number">2</span>
+          <span class="step-number">3</span>
           <h2>Story Levels</h2>
         </div>
         <div class="step-body">
@@ -238,11 +293,12 @@
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
     <div class="setup-actions">
-      <button id="setupBackBtn" class="btn-secondary">Back</button>
-      <button id="setupDoneBtn" class="btn-primary">Start Drawing →</button>
+      <p id="setupError" class="setup-error" role="alert" aria-live="polite"></p>
+      <button id="setupBackBtn" class="btn-secondary" type="button">Cancel</button>
+      <button id="setupDoneBtn" class="btn-primary" type="button">Create Project &amp; Start Drawing</button>
     </div>
   </div>
 </main>
@@ -892,12 +948,66 @@
   </div>
 </div>
 
+
+<!-- Project information editor for existing saved projects -->
+<div id="projectDetailsModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="projectEditTitle">
+  <div class="modal glass project-edit-modal">
+    <button id="projectEditClose" class="modal-close" type="button" aria-label="Close project information">&times;</button>
+    <h2 id="projectEditTitle">Edit Project Information</h2>
+    <p class="setup-advisory">Update your project record without changing its grid, loads or analysis results.</p>
+    <form id="projectEditForm" novalidate>
+      <div class="setup-details-grid">
+        <label class="setup-field">Project name <span class="required-mark">Required</span>
+          <input id="editProjectName" class="input-field" type="text" maxlength="120" required/>
+        </label>
+        <label class="setup-field">Project number / reference
+          <input id="editProjectNumber" class="input-field" type="text" maxlength="80"/>
+        </label>
+        <label class="setup-field">Client / organization
+          <input id="editProjectClient" class="input-field" type="text" maxlength="120"/>
+        </label>
+        <label class="setup-field">Engineer / prepared by
+          <input id="editProjectEngineer" class="input-field" type="text" maxlength="120"/>
+        </label>
+        <label class="setup-field">Project location
+          <input id="editProjectLocation" class="input-field" type="text" maxlength="160"/>
+        </label>
+        <label class="setup-field">Structure type
+          <select id="editProjectStructureType" class="input-field">
+            <option value="building">Building / frame</option>
+            <option value="industrial">Industrial structure</option>
+            <option value="bridge">Bridge / infrastructure</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="setup-field">Reference design standard
+          <select id="editProjectCodeBasis" class="input-field">
+            <option value="ASCE 7-22">ASCE 7-22</option>
+            <option value="ASCE 7-16">ASCE 7-16</option>
+            <option value="Eurocodes">Eurocodes</option>
+            <option value="NBC Nepal">NBC Nepal</option>
+            <option value="Other / project-specific">Other / project-specific</option>
+          </select>
+        </label>
+        <label class="setup-field setup-field-wide">Project description / design notes
+          <textarea id="editProjectDescription" class="input-field" rows="3" maxlength="1200"></textarea>
+        </label>
+      </div>
+      <p id="projectEditError" class="project-edit-error" role="alert" aria-live="polite"></p>
+      <div class="project-edit-actions">
+        <button id="projectEditCancel" class="btn-secondary" type="button">Cancel</button>
+        <button class="btn-primary" type="submit">Save Project Information</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ============================================================ -->
 <!--  MODAL: Project Menu                                         -->
 <!-- ============================================================ -->
 <div class="dropdown-menu hidden" id="projectMenu">
   <button class="dropdown-item" id="saveProjectBtn">💾 Save Project</button>
-  <button class="dropdown-item" id="renameProjectBtn">✏️ Rename</button>
+  <button class="dropdown-item" id="editProjectDetailsBtn">Edit Project Information</button>
   <button class="dropdown-item danger" id="deleteProjectBtn">🗑️ Delete & Exit</button>
 </div>
 

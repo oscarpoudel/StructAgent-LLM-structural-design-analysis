@@ -1251,3 +1251,102 @@ summary:hover{color:var(--text);}
 .chat-design-note {font-size:.76rem;color:var(--text3);}
 
 .interaction-card{border-top:4px solid var(--studio-amber)}
+
+/* Project setup now occupies the viewport between the fixed header and footer.
+   The action bar stays accessible without covering the last configuration row. */
+.topbar { height:var(--topbar-h); }
+.landing-page {
+  inset:var(--topbar-h) 0 var(--statusbar-h) 0;
+  z-index:20;
+  display:block;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.landing-inner { margin:0 auto; padding:32px 0 48px; }
+.setup-page {
+  inset:var(--topbar-h) 0 var(--statusbar-h) 0;
+  z-index:20;
+  display:block;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scroll-padding-top:20px;
+  scroll-padding-bottom:125px;
+}
+.setup-inner {
+  width:min(980px,calc(100% - 32px));
+  margin:0 auto;
+  padding:26px 0 130px;
+}
+.setup-header { margin-bottom:25px; }
+.setup-eyebrow {
+  color:var(--accent);
+  font-weight:800;
+  font-size:.68rem;
+  letter-spacing:1.6px;
+  margin-bottom:7px;
+}
+.setup-steps { gap:17px; }
+.setup-step { box-shadow:var(--glass-shadow); }
+.setup-step#stepProjectDetails { border-top:3px solid var(--studio-teal); }
+.setup-step#stepGrid { border-top:3px solid var(--studio-violet); }
+.setup-step#stepLevels { border-top:3px solid var(--studio-amber); }
+.step-caption { margin-left:auto;color:var(--text3);font-size:.75rem; }
+.setup-details-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 18px; }
+.setup-field { display:flex; flex-direction:column; gap:7px;font-weight:650;font-size:.8rem;color:var(--text2); min-width:0; }
+.setup-field-wide { grid-column:1 / -1; }
+.setup-field .input-field {
+  min-height:39px;
+  padding:9px 11px;
+  background:var(--panel);
+  font-weight:450;
+}
+.setup-field textarea.input-field { min-height:90px; resize:vertical;line-height:1.5; }
+.required-mark { font-size:.65rem;color:var(--studio-teal);font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-left:4px; }
+.setup-advisory { margin-top:14px;color:var(--text3);font-size:.77rem;line-height:1.6; }
+.setup-actions {
+  position:fixed;
+  bottom:var(--statusbar-h);
+  left:0;
+  right:0;
+  z-index:50;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  padding:12px max(18px,calc((100vw - 980px)/2));
+  min-height:68px;
+  background:var(--panel);
+}
+.setup-error { flex:1; min-width:0; color:var(--red);font-size:.8rem;font-weight:650;line-height:1.4; }
+.setup-error:empty,.project-edit-error:empty { display:none; }
+.setup-page .grid-inputs input { min-width:0; }
+.setup-page .levels-table-wrap { max-height:340px; overflow:auto; }
+.project-card h3 { overflow-wrap:anywhere; }
+.project-card-meta { display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:12px;color:var(--text2);font-size:.75rem;line-height:1.4;overflow-wrap:anywhere; }
+.project-card-ref { color:var(--studio-teal);font-size:.72rem;font-weight:750;margin-bottom:7px; }
+.project-edit-modal {
+  width:min(760px,calc(100vw - 32px));
+  max-height:min(780px,calc(100dvh - 42px));
+  display:flex;
+  flex-direction:column;
+  padding:26px;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.project-edit-modal h2 { padding-right:30px;font-size:1.2rem; }
+.project-edit-modal .setup-advisory { margin:6px 0 20px; }
+.project-edit-error { color:var(--red);font-size:.8rem;margin:10px 0; }
+.project-edit-actions { display:flex;justify-content:flex-end;gap:10px;margin-top:18px; }
+@media(max-width:680px) {
+  .setup-header h1 { font-size:1.42rem; }
+  .setup-details-grid { grid-template-columns:1fr;gap:12px; }
+  .setup-field-wide { grid-column:auto; }
+  .step-caption { display:none; }
+  .step-body { padding:14px; }
+  .grid-config { grid-template-columns:1fr;gap:16px; }
+  .setup-actions { padding:10px 16px; flex-wrap:wrap;min-height:68px; }
+  .setup-actions .btn-primary,.setup-actions .btn-secondary { padding:9px 11px;font-size:.8rem; }
+  .setup-error { flex-basis:100%;order:-1; }
+  .setup-inner { padding-bottom:150px; }
+  .project-edit-modal { padding:18px; }
+}
