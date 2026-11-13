@@ -31,7 +31,7 @@ test('ribbon init executes without a ReferenceError and real tab clicks change c
   const commands = [fakeElement('export'), fakeElement('import')];
   commands[0].dataset.tool = 'export';
   commands[1].dataset.tool = 'import';
-  const viewport = {scrollLeft: 50};
+  const viewport = {scrollLeft: 50, addEventListener() {}};
   const ribbon = {
     style: {display: 'block'},
     querySelectorAll(selector) {
