@@ -29,8 +29,7 @@ done
 docker compose version >/dev/null
 [[ -f "$DEPLOY_DIR/.env" ]] || { echo "Create and configure deploy/.env first" >&2; exit 1; }
 [[ -f "$DEPLOY_DIR/controller.env" ]] || {
-  echo "Create deploy/controller.env from controller.env.example first." >&2
-  echo "Create deploy/controller.env for the public demo first." >&2
+  echo "Create deploy/controller.env from deploy/controller.env.example for the public demo." >&2
   exit 1
 }
 if ! id -u structagentctl >/dev/null 2>&1; then

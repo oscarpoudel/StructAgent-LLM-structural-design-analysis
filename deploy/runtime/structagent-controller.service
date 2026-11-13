@@ -1,5 +1,5 @@
 [Unit]
-Description=StructAgent on-demand authenticated controller
+Description=StructAgent public-demo on-demand controller
 After=network-online.target docker.service
 Wants=network-online.target
 

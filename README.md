@@ -6,6 +6,14 @@ This software is intended for research, education, experimentation, and early-st
 
 ---
 
+## Public demo deployment
+
+The public on-demand deployment is available at [StructAgent landing page](https://structagent.oscarp.com.np) with the workspace at [StructAgent workspace](https://structagent-app.oscarp.com.np). The gateway stays online while the compute container starts on visitor request and stops after 30 minutes without visible workspace heartbeats, or after a two-hour maximum session. Visitors share the same compute container and SQLite data, so do not upload private projects. A running Ollama server is configured separately and is not stopped by the idle timer.
+
+For portable Ubuntu installation, configuration, existing Cloudflare Tunnel routing, shutdown testing, service restarts and troubleshooting, see **[deploy/README.md](deploy/README.md)**.
+
+---
+
 ## Screenshots
 
 | Dashboard | Chat Agent |

@@ -12,11 +12,11 @@ git switch main
 git pull --ff-only origin main
 # If deploy/.env already exists, keep it instead of overwriting it.
 test -f deploy/.env || cp deploy/.env.example deploy/.env
-cp deploy/controller.env.example deploy/controller.env
+test -f deploy/controller.env || cp deploy/controller.env.example deploy/controller.env
 nano deploy/.env
 nano deploy/controller.env
 chmod 600 deploy/.env deploy/controller.env
-sudo bash deploy/install.sh --workspace-url https://app.structagent.oscarpoudel.com.np/
+sudo bash deploy/install.sh --workspace-url https://structagent-app.oscarp.com.np/
 ```
 
 Set `APP_SECRET_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, and optional `OLLAMA_BEARER_TOKEN` in `deploy/.env`. For `deploy/controller.env`, the example has both allowed HTTPS origins and idle settings; replace `ADMIN_TOKEN` with a random token generated via:
@@ -35,8 +35,8 @@ Configure **two public hostname routes in your existing host tunnel**:
 
 | Public hostname | HTTP service URL |
 | --- | --- |
-| `structagent.oscarpoudel.com.np` | `http://127.0.0.1:8090` |
-| `app.structagent.oscarpoudel.com.np` | `http://127.0.0.1:8091` |
+| `structagent.oscarp.com.np` | `http://127.0.0.1:8090` |
+| `structagent-app.oscarp.com.np` | `http://127.0.0.1:8091` |
 
 These are separate hostnames because the landing page must remain available while the workspace is stopped. Do not create a cloudflared container. Port 8080 is not used by the new installed runtime.
 
@@ -65,3 +65,76 @@ Stop active analyses first. Then `git pull --ff-only origin main`, followed by t
 - No resource quotas, task queue, or per-user execution limits have been added to the Flask application. Restrict public usage until those safeguards are implemented.
 - This deployment never manages your existing external Ollama server. GPU memory may remain allocated independently.
 - Keep loopback ports, Docker socket, credentials, and the admin token inaccessible from the public internet.
+
+## Session lifecycle and automatic shutdown
+
+The controller is always available on loopback port `8765`, and the Caddy gateway remains up on ports `8090` and `8091`. The Flask/OpenSeesPy compute container runs only after a public visitor requests Start. The existing Ollama endpoint is independent and is **not** stopped automatically.
+
+The defaults in `deploy/controller.env` are:
+
+| Setting | Default | Interpretation |
+| --- | --- | --- |
+| `IDLE_SECONDS` | `1800` | Stop after 30 minutes without a workspace heartbeat |
+| `MAX_SESSION_SECONDS` | `7200` | Stop 2 hours after the controller marks the app ready, even with active visitors |
+| `START_COOLDOWN_SECONDS` | `300` | At least 5 minutes between accepted public startup requests |
+
+A *visible workspace tab* sends a heartbeat approximately every 30 seconds. Merely viewing the public landing page does not keep the compute container alive. A visible workspace tab can keep it alive even without mouse or keyboard activity. The watchdog checks approximately every 15 seconds, so stopping is not instantaneous. The hard two-hour limit is measured from when the workspace is ready, and may interrupt long-running analysis.
+
+### Confirm the current session and container state
+
+```bash
+curl -s http://127.0.0.1:8765/api/session/status
+docker compose -f /var/lib/structagent/runtime/compose.yaml ps -a
+curl -i http://127.0.0.1:5000/health  # HTTP 200 only while compute runs
+```
+
+Expected idle state: `{"detail":"","state":"stopped"}`. While a session is active, the controller reports `ready` and Docker shows the compute container as `Up` and healthy.
+
+### Test automatic idle shutdown in 2 minutes
+
+Only perform this test when nobody is using the application. Edit the *source* controller configuration to `IDLE_SECONDS=120`:
+
+```bash
+cd ~/My_projects/structagent
+nano deploy/controller.env
+sudo install -o root -g root -m 0600 deploy/controller.env /etc/structagent/controller.env
+sudo systemctl restart structagent-controller
+```
+
+Start a fresh session using `https://structagent.oscarp.com.np`, visit the workspace, and then close **all** workspace tabs. Check again after approximately 2 to 3 minutes:
+
+```bash
+curl -s http://127.0.0.1:8765/api/session/status
+docker compose -f /var/lib/structagent/runtime/compose.yaml ps -a
+```
+
+The compute container should be stopped. Restore `IDLE_SECONDS=1800` afterward, copy `deploy/controller.env` to `/etc/structagent/controller.env`, and restart the controller. Restarting the controller reinitializes in-memory session timing; do not do so during a live analysis.
+
+### Restarting services
+
+After editing `deploy/controller.env`, copy it to the installed protected location and restart only the controller:
+
+```bash
+sudo install -o root -g root -m 0600 deploy/controller.env /etc/structagent/controller.env
+sudo systemctl restart structagent-controller
+```
+
+After changing the workspace URL, rerun the installer with `--workspace-url https://structagent-app.oscarp.com.np/` during a maintenance window. The installer refreshes the installed landing-page link, gateway configuration, and controller. To inspect logs:
+
+```bash
+sudo journalctl -u structagent-controller -n 50 --no-pager
+docker compose -f /var/lib/structagent/runtime/compose.yaml logs --tail=100 structagent
+```
+
+### Troubleshooting startup
+
+If the controller reports `failed`, inspect the supervisor and systemd configuration separately:
+
+```bash
+sudo -u structagentctl sudo -n /usr/local/sbin/structagent-compute status
+systemctl show structagent-controller -p CapabilityBoundingSet -p NoNewPrivileges
+```
+
+The installed systemd unit must **not** have an empty `CapabilityBoundingSet=` restriction. That blocked the controller's narrowly permitted `sudo` subprocess on the initial deployment. The corrected `deploy/runtime/structagent-controller.service` is included in `main`. Reinstall the service and run `sudo systemctl daemon-reload` and `sudo systemctl restart structagent-controller` if using an older installed unit.
+
+For manual compute troubleshooting, use `sudo /usr/local/sbin/structagent-compute start` and check `http://127.0.0.1:5000/health`. The controller's in-memory state may need reconciliation after a manual start; restart the controller only after the manual test, outside any active analysis.
