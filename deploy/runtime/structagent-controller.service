@@ -15,7 +15,6 @@ RestartSec=5
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-CapabilityBoundingSet=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 [Install]
