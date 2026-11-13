@@ -10,7 +10,7 @@ import hashlib
 import json
 import math
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -202,7 +202,7 @@ def respond_to_design_request(message: str, llm: Any) -> dict[str, Any]:
     except (ValueError, TypeError) as exc:
         return {"message": "Design inputs rejected: " + str(exc), "source": "deterministic_validation"}
 
-    stamp = datetime.now(timezone.utc).isoformat()
+    stamp = datetime.now(UTC).isoformat()
     digest = hashlib.sha256(json.dumps(extracted, sort_keys=True).encode()).hexdigest()
     selected = data.get("selected") if isinstance(data, dict) else None
     if action == "steel_interaction":
