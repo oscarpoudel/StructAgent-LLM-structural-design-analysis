@@ -33,7 +33,7 @@ test('ribbon controls remain accessible on two-row horizontal ribbon', () => {
   const html = read('app/static/index.html');
   assert.match(css, /\.ribbon-panel\.active\s*\{[^}]*flex-flow:\s*row nowrap/);
   assert.match(css, /\.ribbon-panels\s*\{[^}]*overflow-x:\s*auto/);
-  assert.match(js, /panels\.scrollLeft = 0;\s*measureRibbon\(\);/); // responsive tab change
+  assert.match(js, /wireRibbonNavigation\(ribbon, measureRibbon\)/); // responsive tab change
   assert.match(html, /id="memberDiagramsBtn"/);
   assert.match(html, /id="forceComponentSelect"/);
   assert.match(html, /id="resultsPanelToggleBtn"/);

@@ -9,7 +9,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, request
 
 from app.agents import StructuralAgentSystem
 from app.config import get_settings

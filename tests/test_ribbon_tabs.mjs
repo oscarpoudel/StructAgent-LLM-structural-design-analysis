@@ -73,6 +73,6 @@ test('all five tab panels exist in the HTML and are wired to shared activation',
     assert.match(html, new RegExp('class="ribbon-tab[^"]*"[^>]*data-ribbontab="' + name + '"'));
     assert.match(html, new RegExp('class="ribbon-panel[^"]*"[^>]*data-ribbontab="' + name + '"'));
   }
-  assert.match(js, /activateRibbonTab\(tab\.dataset\.ribbontab, ribbon\)/);
+  assert.match(js, /wireRibbonNavigation\(ribbon, measureRibbon\)/);
   assert.doesNotMatch(js, /\$\('\.ribbon-panel'\)/);
 });
