@@ -14,6 +14,30 @@ For portable Ubuntu installation, configuration, existing Cloudflare Tunnel rout
 
 ---
 
+
+## Engineering workflow upgrade: code checks, second-order comparison and Ollama design
+
+The **Analyze** ribbon supports representative ASCE 7-22 strength-combination templates, a selectable **P-Delta (3D)** geometric-transformation option, and the **Code Review** workspace. It exposes deterministic directional X/Y story-drift screening against selected ASCE/SEI 7-22 Table 12.12-1 limits, an independently specified AISC 360-22 H1 axial-bending interaction check, and a project-selected serviceability L/N comparison.
+
+The chat assistant can route explicitly stated steel design demands through your configured **Ollama** model to select deterministic engineering tools. Ollama does not determine capacities or numerical PASS/FAIL values. When required values are missing, the assistant asks for them. Example chat requests:
+
+```text
+Design steel beam Mu=220 kN-m, Vu=80 kN, Lb=3 m, Fy=345 MPa
+Design steel column Pu=400 kN, KL=4 m, Fy=345 MPa
+Check steel H1 interaction Pr=20 kN, Pc=100 kN, Mrx=30 kN-m, Mcx=100 kN-m, Mry=10 kN-m, Mcy=100 kN-m
+```
+
+The beam and column shape selection functions use the **existing limited W-shape selection library and AISC 360-16-inspired calculations**. They provide preliminary candidates, not complete AISC 360-22 member design. For H1, **Pc, Mcx and Mcy must be independently calculated available strengths** from the correct LRFD or ASD procedure. The LLM cannot invent them.
+
+The 3D P-Delta option uses an OpenSees `PDelta` geometric transformation and compares the maximum translation from that run with the selected load combination analyzed using a first-order `Linear` transformation. It is **not** a complete AISC 360-22 Chapter C direct analysis method. It does not automatically model geometric imperfections, stiffness reductions, all notional loads, member curvature P-delta effects or required load cases.
+
+Each canvas report now includes a UTC timestamp, model-input SHA-256 fingerprint, solver identity, selected combination, analysis order, directional story drifts (where available) and a scope disclaimer. The engineering regression suite includes analytical P-delta and drift checks, H1 branch tests, load-case sign tests, and an OpenSees cantilever first/second-order comparison.
+
+For test cases, assumptions, calculation scope and validation instructions, see **[Engineering verification guide](docs/ENGINEERING_VALIDATION.md)**. No output should be used as construction approval without independent analysis and licensed engineering review.
+
+
+---
+
 ## Screenshots
 
 | Dashboard | Chat Agent |

@@ -138,3 +138,29 @@ systemctl show structagent-controller -p CapabilityBoundingSet -p NoNewPrivilege
 The installed systemd unit must **not** have an empty `CapabilityBoundingSet=` restriction. That blocked the controller's narrowly permitted `sudo` subprocess on the initial deployment. The corrected `deploy/runtime/structagent-controller.service` is included in `main`. Reinstall the service and run `sudo systemctl daemon-reload` and `sudo systemctl restart structagent-controller` if using an older installed unit.
 
 For manual compute troubleshooting, use `sudo /usr/local/sbin/structagent-compute start` and check `http://127.0.0.1:5000/health`. The controller's in-memory state may need reconciliation after a manual start; restart the controller only after the manual test, outside any active analysis.
+
+
+## Engineering upgrade and Ollama verification
+
+This deployment also includes deterministic structural code checks and an Ollama-assisted design command path. See [Engineering verification](../docs/ENGINEERING_VALIDATION.md) and [Main README](../README.md). No new Ollama process is required. Confirm `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, and optional `OLLAMA_BEARER_TOKEN` in `deploy/.env`. The Ollama server must be reachable **from the compute container**, not only from the host.
+
+To deploy new application code without removing the persistent SQLite volume, first stop active analyses and the compute container, then:
+
+```bash
+cd ~/My_projects/structagent
+git switch main
+git pull --ff-only origin main
+sudo /usr/local/sbin/structagent-compute stop
+sudo bash deploy/install.sh --workspace-url https://structagent-app.oscarp.com.np/
+```
+
+The installer builds a new `structagent-local:latest` image and copies the protected controller/gateway/runtime files. The compute container remains on demand; when it next starts, Compose should recreate the stopped container to use the new image. Confirm the new image and health with:
+
+```bash
+docker compose -f /var/lib/structagent/runtime/compose.yaml ps -a
+curl http://127.0.0.1:5000/health
+```
+
+The last health URL only responds when compute is running. If the container was not recreated, use a controlled `docker compose --profile compute up -d --no-deps --force-recreate structagent` with the protected runtime Compose file while in maintenance mode. Never run `docker compose down -v`: that can destroy your SQLite volume.
+
+After startup, use a hard browser refresh so the latest `app/static/styles.css` and JS modules are loaded. The chat's **Steel Design** quick prompt invokes the Ollama input-extraction path, and the deterministic Python tool returns a trace report. If Ollama is unavailable, labeled values (e.g. `Mu=220`, `Vu=80`, `Lb=3`, `Fy=345`) can still be checked through a restricted deterministic parser. Do not assume an external model is reachable merely because the compute container is healthy.
