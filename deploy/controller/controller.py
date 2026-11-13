@@ -7,7 +7,6 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from urllib.parse import urlparse
 
 import jwt
 from flask import Flask, jsonify, request
@@ -24,6 +23,23 @@ SUPERVISOR = "/usr/local/sbin/structagent-compute"
 JWK = PyJWKClient(f"https://{TEAM}/cdn-cgi/access/certs", cache_jwk_set=True, lifespan=300)
 lock = threading.RLock()
 state = {"phase": "stopped", "detail": "", "last_activity": 0.0, "started": 0.0}
+
+# Read real Docker state after controller restarts. The runtime stack is
+# root-owned and the supervisor exposes only an exact, read-only status action.
+def reconcile_at_startup():
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", SUPERVISOR, "status"],
+            capture_output=True, text=True, timeout=20, check=True
+        )
+        if result.stdout.strip() == "running":
+            now = time.monotonic()
+            state.update(phase="ready" if probe() else "failed",
+                         detail="" if probe() else "Container running but unhealthy",
+                         started=now, last_activity=now)
+    except (OSError, subprocess.SubprocessError):
+        state.update(phase="failed", detail="Unable to inspect Docker state")
+
 
 def authenticate():
     token = request.headers.get("Cf-Access-Jwt-Assertion", "")
@@ -135,6 +151,7 @@ def watchdog():
         if expired:
             schedule_stop()
 
+reconcile_at_startup()
 threading.Thread(target=watchdog, daemon=True).start()
 
 if __name__ == "__main__":

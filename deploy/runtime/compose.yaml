@@ -1,0 +1,36 @@
+name: structagent
+services:
+  gateway:
+    image: caddy:2.10
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /config
+      - /data
+    volumes:
+      - ./gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./gateway/site:/srv:ro
+    security_opt:
+      - no-new-privileges:true
+  structagent:
+    profiles: ["compute"]
+    image: structagent-local:latest
+    restart: "no"
+    init: true
+    ports:
+      - "127.0.0.1:5000:5000"
+    env_file:
+      - /etc/structagent/compute.env
+    environment:
+      STRUCTAGENT_DB_PATH: /app/data/analysis_history.db
+      APP_ENV: production
+    volumes:
+      - structagent_data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 45s
+
+volumes:
+  structagent_data:

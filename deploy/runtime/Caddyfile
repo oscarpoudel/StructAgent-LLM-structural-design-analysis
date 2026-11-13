@@ -1,0 +1,16 @@
+:8090 {
+    bind 127.0.0.1
+    handle /api/session/* {
+        reverse_proxy 127.0.0.1:8765
+    }
+    root * /srv
+    file_server
+}
+
+:8091 {
+    bind 127.0.0.1
+    handle /api/session/* {
+        reverse_proxy 127.0.0.1:8765
+    }
+    reverse_proxy 127.0.0.1:5000
+}

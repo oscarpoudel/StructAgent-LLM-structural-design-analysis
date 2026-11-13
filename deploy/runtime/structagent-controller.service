@@ -1,0 +1,22 @@
+[Unit]
+Description=StructAgent on-demand authenticated controller
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=structagentctl
+Group=structagentctl
+WorkingDirectory=/var/lib/structagent/controller
+EnvironmentFile=/etc/structagent/controller.env
+ExecStart=/var/lib/structagent/controller/.venv/bin/python /var/lib/structagent/controller/controller.py
+Restart=on-failure
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

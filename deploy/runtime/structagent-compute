@@ -1,0 +1,24 @@
+#!/bin/sh
+# Root-owned immutable supervisor. Called only through exact sudoers rules.
+set -eu
+cd /var/lib/structagent/runtime
+case "${1:-}" in
+  start)
+    exec /usr/bin/docker compose --profile compute up -d --no-deps structagent
+    ;;
+  stop)
+    exec /usr/bin/docker compose stop -t 45 structagent
+    ;;
+  status)
+    running="$(/usr/bin/docker compose --profile compute ps --status running -q structagent)"
+    if [ -n "$running" ]; then
+      printf 'running\n'
+    else
+      printf 'stopped\n'
+    fi
+    ;;
+  *)
+    echo "unsupported action" >&2
+    exit 64
+    ;;
+esac

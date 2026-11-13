@@ -1,3 +1,2 @@
-# Install with visudo -cf and mode 0440.
-# The controller account cannot supply other commands or paths.
-structagentctl ALL=(root) NOPASSWD: /usr/local/sbin/structagent-compute start, /usr/local/sbin/structagent-compute stop
+# Fixed root-owned runtime, never a Compose file in a user-writable checkout.
+structagentctl ALL=(root) NOPASSWD: /usr/local/sbin/structagent-compute start, /usr/local/sbin/structagent-compute stop, /usr/local/sbin/structagent-compute status
