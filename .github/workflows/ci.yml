@@ -42,7 +42,11 @@ jobs:
           python -m pytest -q tests/test_code_checks.py tests/test_engineering_extensions.py tests/test_engineering_endpoints.py tests/test_member_diagrams.py
 
       - name: Validate project wizard inputs and geometry
-        run: node --test tests/test_project_metadata.mjs
+        run: |
+          node --test tests/test_project_metadata.mjs tests/test_studio_workflow.mjs
+          for source in app/static/js/main.js app/static/js/ribbon.js app/static/js/results.js app/static/js/memberDiagrams.js app/static/js/projects.js app/static/js/analysis.js app/static/js/canvas3d/render.js; do
+            node --input-type=module --check < "$source"
+          done
 
       - name: Lint with ruff
         run: |
