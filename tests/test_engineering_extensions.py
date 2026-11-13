@@ -138,3 +138,15 @@ def test_ollama_cannot_invent_missing_capacity():
     result = respond_to_design_request(text, _FakeLLM())
     assert result.get("design_result") is None
     assert "my_demand_kn_m" in result["message"]
+
+
+def test_independent_solver_cross_validation_regression():
+    """Closed-form/OpenSees and direct-stiffness solvers must agree on benchmarks."""
+    from app.tools.cross_validation import run_cross_validation
+
+    results = run_cross_validation()
+    assert results["total_checks"] >= 15
+    failed = [(group, item["quantity"], item["max_rel_diff"])
+              for group, checks in results["benchmarks"].items()
+              for item in checks if not item["pass"]]
+    assert not failed, f"Independent solver benchmark differences: {failed}"
