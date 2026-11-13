@@ -19,6 +19,10 @@ export function initRibbon() {
   initEmptyState();
   measureRibbon();
   window.addEventListener('resize', measureRibbon);
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(measureRibbon);
+    observer.observe(byId('ribbon'));
+  }
 }
 
 // Quick-start buttons shown on the empty canvas.
@@ -36,7 +40,13 @@ export function measureRibbon() {
     const ribbon = byId('ribbon');
     if (!ribbon || ribbon.style.display === 'none') return;
     const h = Math.ceil(ribbon.getBoundingClientRect().height);
-    if (h > 0) document.documentElement.style.setProperty('--ribbon-actual', `${h}px`);
+    if (h > 0) {
+      const previous = parseInt(document.documentElement.style.getPropertyValue('--ribbon-actual') || '0', 10);
+      if (previous !== h) {
+        document.documentElement.style.setProperty('--ribbon-actual', `${h}px`);
+        requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+      }
+    }
   });
 }
 
@@ -45,7 +55,11 @@ function initRibbonTabs() {
     tab.addEventListener('click', () => {
       const name = tab.dataset.ribbontab;
       $$('.ribbon-tab').forEach((t) => t.classList.toggle('active', t === tab));
-      $$('.ribbon-panel').forEach((p) => p.classList.toggle('active', p.dataset.ribbontab === name));
+      $('.ribbon-panel').forEach((p) => p.classList.toggle('active', p.dataset.ribbontab === name));
+      $('.ribbon-tab').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+      const panels = byId('ribbon').querySelector('.ribbon-panels');
+      if (panels) panels.scrollLeft = 0;
+      measureRibbon();
     });
   });
 }

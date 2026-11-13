@@ -19,7 +19,7 @@
     <div class="brand"><span class="brand-icon">&#9651;</span> StructAgent <span class="brand-sub">Structural Analysis Studio</span></div>
     <span class="credit">by <a href="https://www.oscarp.com.np" target="_blank" rel="noopener">Oscar</a></span>
     <div id="projectBadge" class="project-badge" style="display:none;">
-      <span id="projectName">Project</span>
+      <button id="projectName" class="project-name-action" type="button" title="View and edit project information">Project</button>
       <button id="projectMenuBtn" class="icon-btn-sm" title="Project menu">&#8942;</button>
     </div>
     <button id="themeBtn" class="icon-btn" title="Toggle theme"><span id="themeIco">&#9790;</span></button>
@@ -45,6 +45,7 @@
       <div class="ribbon-group">
         <p class="ribbon-group-title">Sections</p>
         <button class="ribbon-btn" data-tool="applysections" title="Assign preliminary beam/column/brace sections">Apply Sections</button>
+        <button class="ribbon-btn" id="projectInfoBtn" type="button" title="View and edit saved project information">Project Info</button>
       </div>
       <div class="ribbon-group">
         <p class="ribbon-group-title">File</p>
@@ -111,6 +112,7 @@
         <label class="ribbon-chk"><input type="checkbox" id="showLabels" checked/> Labels</label>
         <label class="ribbon-chk"><input type="checkbox" id="showDeformed"/> Deformed</label>
         <label class="ribbon-chk"><input type="checkbox" id="showForces"/> Forces</label>
+        <select id="forceComponentSelect" class="ribbon-select" title="Choose one comparable local member force component for on-model coloring" aria-label="Member force component"><option value="N">Axial N</option><option value="Vy">Shear Vy</option><option value="Vz">Shear Vz</option><option value="My">Moment My</option><option value="Mz" selected>Moment Mz</option><option value="T">Torsion T</option></select>
         <label class="ribbon-chk"><input type="checkbox" id="showDrift"/> Drift</label>
         <div class="ribbon-scale" title="Deformation scale">
           <span>Scale</span>
@@ -119,7 +121,9 @@
       </div>
       <div class="ribbon-group">
         <p class="ribbon-group-title">Tools</p>
-        <button id="settingsBtn" class="ribbon-btn">&#9881; Settings</button>
+        <button id="settingsBtn" class="ribbon-btn">Settings</button>
+        <button id="resultsPanelToggleBtn" class="ribbon-btn" type="button" aria-pressed="false">Expand Canvas</button>
+        <button id="memberDiagramsBtn" class="ribbon-btn" type="button">Force Diagrams</button>
         <button class="ribbon-btn" data-tool="history">History</button>
       </div>
     </div>
@@ -405,6 +409,8 @@
     <div class="rp-header">
       <h2>Results</h2>
       <div class="rp-actions">
+        <button class="btn-xs" type="button" id="memberDiagramsResultsBtn">Diagrams</button>
+        <button class="btn-xs" type="button" id="closeResultsPanelBtn" title="Expand modeling canvas">Collapse</button>
         <button class="btn-xs" id="exportCsvBtn">CSV</button>
         <button class="btn-xs" id="exportMdBtn">Report</button>
         <button class="btn-xs" id="exportPdfBtn">PDF</button>
@@ -416,6 +422,31 @@
   </aside>
 </main>
 
+
+<!-- Structural force diagram viewer. Local axes follow OpenSees element orientation. -->
+<div class="modal-overlay hidden" id="modal-member-diagrams" role="dialog" aria-modal="true" aria-labelledby="memberDiagramTitle">
+  <div class="modal glass member-diagrams-modal">
+    <button class="modal-close" type="button" id="memberDiagramClose" aria-label="Close member force diagrams">&times;</button>
+    <div class="member-diagrams-head">
+      <p class="code-kicker">ANALYSIS RESULTS</p>
+      <h2 id="memberDiagramTitle">Member Force Diagrams</h2>
+      <p>Axial force, shear, bending and torsion diagrams in the member's local coordinate system.</p>
+    </div>
+    <div class="member-diagrams-controls">
+      <label>Load combination<select id="diagramCombination" class="input-field" aria-label="Load combination for member force diagram"></select></label>
+      <label>Frame member<select id="diagramMember" class="input-field" aria-label="Frame member number"></select></label>
+      <label>Diagram type<select id="diagramComponent" class="input-field" aria-label="Force diagram component">
+        <option value="all">All six components</option>
+        <option value="N">Axial N</option><option value="Vy">Shear Vy</option><option value="Vz">Shear Vz</option>
+        <option value="My">Bending My</option><option value="Mz">Bending Mz</option><option value="T">Torsion T</option>
+      </select></label>
+      <button id="diagramCsvBtn" type="button" class="btn-secondary">Export Diagram CSV</button>
+    </div>
+    <p class="member-diagrams-note" id="memberDiagramNotes">Run an OpenSees 3D frame analysis before plotting member diagrams.</p>
+    <div class="member-diagrams-plot-grid" id="memberDiagramPlots" aria-live="polite"></div>
+    <p class="member-diagrams-footnote">Values are internal section resultants derived from OpenSees local end forces and full-span uniform element loads, not global forces. Verify local axes, force signs, convergence, load case, equilibrium and member capacity separately. Diagram stations follow the member's I-to-J orientation.</p>
+  </div>
+</div>
 <!-- ============================================================ -->
 <!--  POPUP: LOADS (Wind / Seismic / Snow determination)          -->
 <!-- ============================================================ -->
