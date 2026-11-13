@@ -1,0 +1,14 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+deploy/.env
+deploy/controller.env
+deploy/controller/.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.venv
+analysis_history.db
+*.db
