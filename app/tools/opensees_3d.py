@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import math
-
 import copy
+import math
 from itertools import pairwise
 
 from app.models import Structure3DInputs
