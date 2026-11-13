@@ -1,3 +1,5 @@
+import { selectProjectVersion } from './projectResolver.mjs';
+
 const DB_NAME = 'StructAgentDB';
 const DB_VERSION = 1;
 const PROJECT_STORE = 'projects';
@@ -111,9 +113,7 @@ async function deleteProjectLocal(id) {
   }
 }
 
-function newerProject(first, second) {
-  return (first?.updatedAt || 0) >= (second?.updatedAt || 0) ? first : second;
-}
+
 
 async function saveProjectServer(project) {
   await serverJson(`/api/projects/${encodeURIComponent(project.id)}`, {
@@ -133,15 +133,17 @@ async function mergeLocalProjectsIntoServer(serverProjects) {
 
   for (const localProject of localProjects) {
     const serverProject = merged.get(localProject.id);
-    const winningProject = newerProject(localProject, serverProject);
+    const winningProject = selectProjectVersion(localProject, serverProject);
     merged.set(localProject.id, winningProject);
 
-    if (!serverProject || winningProject === localProject) {
-      try {
+    try {
+      if (!serverProject || winningProject === localProject) {
         await saveProjectServer(localProject);
-      } catch (error) {
-        console.warn('[StructAgent] Failed to migrate local project to server:', error);
+      } else if (winningProject === serverProject) {
+        await saveProjectLocal(serverProject);
       }
+    } catch (error) {
+      console.warn('[StructAgent] Failed to reconcile local and server projects:', error);
     }
   }
 
@@ -161,7 +163,20 @@ export async function getAllProjects() {
 export async function getProject(id) {
   try {
     const data = await serverJson(`/api/projects/${encodeURIComponent(id)}`);
-    return data.project || null;
+    const serverProject = data.project || null;
+    const localProject = await getProjectLocal(id);
+    const chosen = selectProjectVersion(localProject, serverProject);
+    if (!chosen) return null;
+    try {
+      if (chosen === localProject && localProject !== serverProject) {
+        await saveProjectServer(localProject);
+      } else if (chosen === serverProject) {
+        await saveProjectLocal(serverProject);
+      }
+    } catch (error) {
+      console.warn('[StructAgent] Project reconciliation skipped:', error);
+    }
+    return chosen;
   } catch (error) {
     console.warn('[StructAgent] Using browser project fallback:', error);
     const localProject = await getProjectLocal(id);
