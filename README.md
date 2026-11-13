@@ -66,6 +66,9 @@ For portable Ubuntu installation, configuration, existing Cloudflare Tunnel rout
 - **Story-force application** — map wind/seismic story forces onto the drawn 3D model as nodal loads, then analyze
 
 ### Element Design & Code Checks (deterministic, no LLM)
+- **Code Review workspace:** ASCE/SEI 7-22 Table 12.12-1 seismic story-drift screening with user-confirmed Cd, Ie, risk category and structural class; per-story utilization table with explicit reference and limitations
+- **Serviceability screening:** project-defined member deflection L/N comparison in the context of AISC 360-22 Chapter L, with no claim that one ratio is universally mandatory
+- **Multi-color studio:** selectable Ocean, Teal, Violet and Copper palettes, enhanced workspace hierarchy and color-coded engineering checks
 - **Steel section selection** — AISC 360: lightest adequate W-shape for flexure (incl. LTB, AISC F2) + shear, or axial (AISC E3)
 - **Concrete design** — ACI 318 singly-reinforced beam (flexure, shear, stirrup spacing) and circular tied/spiral column
 - **Timber design** — NDS rectangular beam with CD/CM/Ct/CF/CL factors, flexure/shear/stability/deflection
@@ -410,3 +413,12 @@ If you find a vulnerability, please do not file a public issue. Email **opoudel2
 ## Acknowledgements
 
 StructAgent uses many great open-source projects, including: Flask, OpenSeesPy, Three.js, Pydantic, Pytest, Ollama, httpx, Pydantic-AI, and NumPy.
+
+
+## Code review: required engineering judgment
+
+Open the **Analyze** ribbon and choose **Code Review** after solving a 3D frame. The seismic drift screening requires the input to be **elastic seismic story drifts** from an appropriate seismic analysis. A gravity or wind combination, or a pre-amplified drift, cannot simply be treated as a valid seismic demand. Select the correct ASCE/SEI 7-22 Table 12.12-1 structure class and risk category, then supply a justified displacement amplification factor (Cd) and importance factor (Ie). The check computes design story drift = elastic story drift × Cd / Ie, and compares with the selected allowable coefficient × story height. The four-story exception requires explicit eligibility confirmation.
+
+The separate member deflection check compares a service-load displacement with a **user-selected** L/N criterion. AISC 360-22 Chapter L addresses serviceability, but does not prescribe a universal L/360 ratio for all members.
+
+These are **scoped preliminary acceptance checks**, not automated whole-building code compliance. Proper seismic analysis, member strength, system stability, governing load effects, detailing, drift direction and professional review remain necessary. Never rely on a PASS label as approval for construction.

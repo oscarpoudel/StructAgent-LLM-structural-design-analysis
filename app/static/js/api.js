@@ -221,3 +221,19 @@ export function pdeltaForces(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function checkSeismicStoryDrift(payload) {
+  return jsonRequest('/api/design/code-checks/story-drift', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function checkMemberDeflection(payload) {
+  return jsonRequest('/api/design/code-checks/member-deflection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}

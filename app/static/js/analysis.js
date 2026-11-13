@@ -1,4 +1,4 @@
-import { analyzeStructure } from './api.js';
+import { analyzeStructure, checkSeismicStoryDrift, checkMemberDeflection } from './api.js';
 import { byId } from './dom.js';
 import { fitModelToCanvas } from './canvas3d/index.js';
 import { showProp } from './canvas3d/render.js';
@@ -16,6 +16,7 @@ export function initAnalysis() {
   const importJsonFile = byId('importJsonFile');
   if (importJsonFile) importJsonFile.addEventListener('change', importModelJson);
   init3DAnalysisControls();
+  initCodeReview();
   window.StructAgentDebug = {
     getState: () => JSON.parse(JSON.stringify(S)),
     drawSimpleBeam,
@@ -484,4 +485,135 @@ export function importModelJson(e) {
     e.target.value = '';
   };
   reader.readAsText(file);
+}
+
+function initCodeReview() {
+  const modal = byId('modal-code-review');
+  const open = byId('codeReviewBtn');
+  if (!modal || !open) return;
+  open.addEventListener('click', () => {
+    modal.classList.remove('hidden');
+    const drifts = S.results?.story_response?.story_drifts;
+    byId('codeInputSummary').textContent = drifts?.length
+      ? `${drifts.length} story drifts available from current results`
+      : 'No 3D story drifts available';
+  });
+  byId('codeReviewClose').addEventListener('click', () => modal.classList.add('hidden'));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) modal.classList.add('hidden');
+  });
+  byId('codeRunDrift').addEventListener('click', runCodeDrift);
+  byId('codeRunDeflection').addEventListener('click', runCodeDeflection);
+}
+
+function addMessage(target, message, className = 'code-result-message') {
+  target.replaceChildren();
+  const paragraph = document.createElement('p');
+  paragraph.className = className;
+  paragraph.textContent = message;
+  target.appendChild(paragraph);
+}
+
+function codeSummary(target, result, title, details) {
+  target.replaceChildren();
+  const strip = document.createElement('div');
+  strip.className = 'code-summary-strip';
+  const badge = document.createElement('strong');
+  badge.className = result.result === 'PASS' ? 'code-pass' : 'code-fail';
+  badge.textContent = result.result;
+  const message = document.createElement('span');
+  message.textContent = title;
+  strip.append(badge, message);
+  target.appendChild(strip);
+  const paragraph = document.createElement('p');
+  paragraph.className = 'code-result-message';
+  paragraph.textContent = details;
+  target.appendChild(paragraph);
+}
+
+async function runCodeDrift() {
+  const target = byId('codeDriftResults');
+  const drifts = S.results?.story_response?.story_drifts;
+  if (!Array.isArray(drifts) || !drifts.length) {
+    addMessage(target, 'No 3D story drifts are available. Analyze a 3D frame with a seismic load case first.');
+    return;
+  }
+  const btn = byId('codeRunDrift');
+  btn.disabled = true;
+  addMessage(target, 'Checking seismic drift limits...');
+  try {
+    const data = await checkSeismicStoryDrift({
+      story_drifts: drifts,
+      risk_category: byId('codeRisk').value,
+      structure_class: byId('codeStructure').value,
+      cd: Number(byId('codeCd').value),
+      ie: Number(byId('codeIe').value),
+      seismic_elastic_confirmed: byId('codeConfirmSeismic').checked,
+      compatible_partitions_confirmed: byId('codeConfirmPartitions').checked
+    });
+    if (data.status !== 'ok') throw new Error(data.message || 'Code check could not be completed.');
+    const r = data.results;
+    S.results = { ...S.results, code_checks: { ...S.results.code_checks, seismic_story_drift: r } };
+    codeSummary(target, r.summary, r.reference,
+      `Governing story ${r.summary.governing_story}; utilization ${r.summary.governing_utilization.toFixed(3)}. Allowable drift ratio ${r.allowable_ratio}.`);
+    const table = document.createElement('table');
+    table.className = 'code-check-table';
+    const header = document.createElement('tr');
+    ['Story', 'Height (m)', 'Elastic (mm)', 'Design (mm)', 'Allowable (mm)', 'Util.', 'Result'].forEach((name) => {
+      const th = document.createElement('th');
+      th.textContent = name;
+      header.appendChild(th);
+    });
+    const thead = document.createElement('thead');
+    thead.appendChild(header);
+    const tbody = document.createElement('tbody');
+    r.checks.forEach((check) => {
+      const row = document.createElement('tr');
+      [check.story, check.height_m, check.elastic_drift_mm, check.design_drift_mm,
+        check.allowable_drift_mm, check.utilization, check.result].forEach((value) => {
+        const cell = document.createElement('td');
+        cell.textContent = String(value);
+        row.appendChild(cell);
+      });
+      row.className = check.result === 'FAIL' ? 'code-row-fail' : 'code-row-pass';
+      tbody.appendChild(row);
+    });
+    table.append(thead, tbody);
+    target.appendChild(table);
+    const limitations = document.createElement('p');
+    limitations.className = 'code-check-disclaimer';
+    limitations.textContent = r.limitations.join(' ');
+    target.appendChild(limitations);
+  } catch (error) {
+    addMessage(target, error.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function runCodeDeflection() {
+  const target = byId('codeDeflectionResults');
+  const btn = byId('codeRunDeflection');
+  btn.disabled = true;
+  addMessage(target, 'Checking specified member deflection criterion...');
+  try {
+    const data = await checkMemberDeflection({
+      span_m: Number(byId('codeSpan').value),
+      deflection_mm: Number(byId('codeDeflection').value),
+      span_ratio: Number(byId('codeSpanRatio').value),
+    });
+    if (data.status !== 'ok') throw new Error(data.message || 'Deflection check could not be completed.');
+    const r = data.results;
+    codeSummary(target, r,
+      `${r.criterion} project criterion`,
+      `Service deflection: ${r.deflection_mm} mm; allowable: ${r.allowable_mm} mm; utilization: ${r.utilization.toFixed(3)}.`);
+    const limitations = document.createElement('p');
+    limitations.className = 'code-check-disclaimer';
+    limitations.textContent = r.limitations.join(' ');
+    target.appendChild(limitations);
+  } catch (error) {
+    addMessage(target, error.message);
+  } finally {
+    btn.disabled = false;
+  }
 }

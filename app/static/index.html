@@ -97,6 +97,7 @@
       <div class="ribbon-group">
         <p class="ribbon-group-title">Run</p>
         <button id="runBtn" class="ribbon-btn primary">&#9654; Analyze</button>
+        <button id="codeReviewBtn" class="ribbon-btn code-review-launch">Code Review</button>
         <button id="clearAnalysisBtn" class="ribbon-btn">Clear Results</button>
         <button id="clearBtn" class="ribbon-btn danger">Clear Model</button>
       </div>
@@ -130,7 +131,8 @@
   <div class="landing-inner">
     <div class="landing-header">
       <h1>Structural Analysis Studio</h1>
-      <p>Create or open a project to get started</p>
+      <p>Model structural systems, evaluate engineering response, and document code checks.</p>
+      <div class="studio-pill-row"><span>3D Frame Analysis</span><span>OpenSeesPy Solver</span><span>ASCE 7-22 Drift Checks</span><span>Engineering Reports</span></div>
     </div>
     <button id="newProjectBtn" class="btn-primary">+ New Project</button>
     <div id="projectGrid" class="project-grid">
@@ -818,6 +820,59 @@
   </div>
 </div>
 
+
+<!-- Scoped structural code review; results require explicit engineering assumptions. -->
+<div class="modal-overlay hidden" id="modal-code-review" role="dialog" aria-modal="true" aria-labelledby="codeReviewTitle">
+  <div class="modal glass code-review-modal">
+    <button class="modal-close" id="codeReviewClose" type="button" aria-label="Close code review">&times;</button>
+    <div class="code-review-header">
+      <p class="code-kicker">ENGINEERING VERIFICATION</p>
+      <h2 id="codeReviewTitle">Code Review Workspace</h2>
+      <p>Deterministic acceptance checks with explicit references, units, assumptions and governing utilizations. Results are preliminary, not a code-compliance certificate.</p>
+    </div>
+    <div class="code-review-scroll">
+      <section class="code-check-card drift-card">
+        <div class="code-check-heading"><span class="code-check-index">01</span><div><h3>Seismic story drift</h3><p>ASCE/SEI 7-22, Section 12.12.1, Table 12.12-1</p></div></div>
+        <p class="code-review-note">Uses story drifts from the most recent 3D model analysis. The analysis must represent <strong>elastic seismic response</strong>; generic gravity/wind combinations are not valid inputs. Confirm the actual seismic system and Cd/Ie factors.</p>
+        <div class="code-review-fields">
+          <label>Risk category
+            <select id="codeRisk"><option>I</option><option selected>II</option><option>III</option><option>IV</option></select>
+          </label>
+          <label>Structure class
+            <select id="codeStructure">
+              <option value="other">All other structures</option>
+              <option value="four_story_compatible">Eligible four-story or lower</option>
+              <option value="masonry_cantilever">Masonry cantilever shear wall</option>
+              <option value="masonry_other">Other masonry shear wall</option>
+            </select>
+          </label>
+          <label>Deflection amplification Cd
+            <input id="codeCd" type="number" value="5.5" min="0.01" max="20" step="0.1"/>
+          </label>
+          <label>Seismic importance Ie
+            <input id="codeIe" type="number" value="1" min="0.01" max="5" step="0.05"/>
+          </label>
+        </div>
+        <label class="code-confirm"><input type="checkbox" id="codeConfirmSeismic"/> I confirm the analyzed story drifts are elastic seismic drifts, not amplified or from a nonseismic combination.</label>
+        <label class="code-confirm"><input type="checkbox" id="codeConfirmPartitions"/> For the four-story category only: non-masonry structure, maximum four stories, and all required nonstructural drift accommodation verified.</label>
+        <div class="code-review-actions"><button type="button" class="btn-primary" id="codeRunDrift">Check story drifts</button><span id="codeInputSummary"></span></div>
+        <div id="codeDriftResults" class="code-check-results" role="status" aria-live="polite">Run a 3D seismic elastic analysis, then review its drifts here.</div>
+      </section>
+      <section class="code-check-card deflection-card">
+        <div class="code-check-heading"><span class="code-check-index">02</span><div><h3>Member serviceability</h3><p>AISC 360-22 Chapter L context; designer-selected L/N criterion</p></div></div>
+        <p class="code-review-note">Compare a measured service-load deflection with a project-specified span ratio. AISC Chapter L does not impose one universal L/360 limit on every member.</p>
+        <div class="code-review-fields">
+          <label>Member span (m)<input type="number" id="codeSpan" value="6" min="0.001" step="0.1"/></label>
+          <label>Service deflection (mm)<input type="number" id="codeDeflection" value="12" min="0" step="0.1"/></label>
+          <label>Allowed denominator (L/N)<input type="number" id="codeSpanRatio" value="360" min="50" max="2000" step="1"/></label>
+        </div>
+        <div class="code-review-actions"><button type="button" class="btn-secondary" id="codeRunDeflection">Check member deflection</button></div>
+        <div id="codeDeflectionResults" class="code-check-results" role="status" aria-live="polite">Enter service-load displacement and the applicable project criterion.</div>
+      </section>
+    </div>
+  </div>
+</div>
+
 <!-- ============================================================ -->
 <!--  MODAL: Project Menu                                         -->
 <!-- ============================================================ -->
@@ -836,6 +891,7 @@
     <button id="settingsCloseBtn" class="icon-btn-sm">&times;</button>
   </div>
   <div class="settings-body">
+    <label class="settings-row"><span>Accent palette</span><select id="accentPalette" aria-label="Accent palette"><option value="ocean">Ocean Blue</option><option value="teal">Teal + Emerald</option><option value="violet">Indigo + Violet</option><option value="copper">Copper + Amber</option></select></label>
     <label class="settings-row">
       <span>Load Arrow Size</span>
       <input type="range" id="loadScaleRange" min="1" max="10" step="0.5" value="3"/>

@@ -14,6 +14,7 @@ from app.models import (
     SpreadFootingInputs,
     TimberBeamInputs,
 )
+from app.tools.code_checks import check_member_deflection, check_seismic_story_drift
 from app.tools.concrete import design_concrete_beam, design_concrete_column
 from app.tools.cost import estimate_cost
 from app.tools.fatigue import check_fatigue, list_fatigue_categories
@@ -157,4 +158,42 @@ def fatigue_check():
         result = check_fatigue(inputs)
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
+    return jsonify({"status": "ok", "results": result})
+
+
+@bp.post("/api/design/code-checks/story-drift")
+def seismic_drift_code_check():
+    """ASCE 7-22 seismic drift screening using confirmed elastic results."""
+    data = request.get_json(silent=True) or {}
+    try:
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object.")
+        result = check_seismic_story_drift(
+            data.get("story_drifts"),
+            risk_category=data.get("risk_category", ""),
+            structure_class=data.get("structure_class", ""),
+            cd=data.get("cd"),
+            importance_factor=data.get("ie"),
+            seismic_elastic_confirmed=data.get("seismic_elastic_confirmed"),
+            compatible_partitions_confirmed=data.get("compatible_partitions_confirmed", False),
+        )
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 422
+    return jsonify({"status": "ok", "results": result})
+
+
+@bp.post("/api/design/code-checks/member-deflection")
+def member_deflection_code_check():
+    """Project-defined member serviceability ratio; not a universal code limit."""
+    data = request.get_json(silent=True) or {}
+    try:
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object.")
+        result = check_member_deflection(
+            span_m=data.get("span_m"),
+            deflection_mm=data.get("deflection_mm"),
+            span_ratio=data.get("span_ratio"),
+        )
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 422
     return jsonify({"status": "ok", "results": result})
