@@ -477,6 +477,37 @@ def format_traceability_appendix(results: dict[str, object]) -> str:
                 f"{item.get('drift_x_mm', 'n/a')} | {item.get('drift_y_mm', 'n/a')} | "
                 f"{item.get('drift_mm', 'n/a')} | {item.get('pairing_method', 'unknown')} |"
             )
+    member_force_summary = results.get("member_force_summary", {})
+    if isinstance(member_force_summary, dict) and member_force_summary:
+        units = {
+            "Axial N": ("max_abs_axial_kn", "kN"),
+            "Shear Vy": ("max_abs_shear_y_kn", "kN"),
+            "Shear Vz": ("max_abs_shear_z_kn", "kN"),
+            "Torsion T": ("max_abs_torsion_kn_m", "kN-m"),
+            "Bending My": ("max_abs_moment_y_kn_m", "kN-m"),
+            "Bending Mz": ("max_abs_moment_z_kn_m", "kN-m"),
+        }
+        lines.extend([
+            "",
+            "## Governing local member-force magnitudes",
+            "These are local member-section resultants, not global forces. "
+            "Station diagrams include full-length uniform element loads when present.",
+            "| Component | Governing member | Maximum absolute magnitude | Unit |",
+            "|---|---|---:|---|",
+        ])
+        for label, (key, unit) in units.items():
+            member_id, data = max(
+                member_force_summary.items(),
+                key=lambda item: abs(float(item[1].get(key) or 0)),
+            )
+            lines.append(f"| {label} | {member_id} | {float(data.get(key) or 0):.4f} | {unit} |")
+        lines.extend([
+            "",
+            "- Local force sections were obtained from OpenSees localForce output; "
+            "globalMemberForces/global_member_forces are retained separately for global reaction checks.",
+            "- The complete station values and load-combination-specific diagrams are in the analysis JSON. "
+            "All section strengths, local axes, sign conventions and governing load envelopes require verification.",
+        ])
     lines.extend([
         "",
         "### Evidence interpretation",
