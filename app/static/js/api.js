@@ -237,3 +237,19 @@ export function checkMemberDeflection(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function fetch3DLoadTemplates(cases) {
+  return jsonRequest('/api/load-combinations/3d-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cases }),
+  });
+}
+
+export function checkSteelInteraction(payload) {
+  return jsonRequest('/api/design/code-checks/steel-interaction', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}

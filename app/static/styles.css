@@ -1249,3 +1249,5 @@ summary:hover{color:var(--text);}
 .chat-design-result strong { display:block;color:var(--accent);font-size:.82rem;margin-bottom:6px; }
 .chat-design-result p { margin:7px 0;line-height:1.55;white-space:pre-wrap; }
 .chat-design-note {font-size:.76rem;color:var(--text3);}
+
+.interaction-card{border-top:4px solid var(--studio-amber)}

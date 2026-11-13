@@ -1,4 +1,4 @@
-import { analyzeStructure, checkSeismicStoryDrift, checkMemberDeflection } from './api.js';
+import { analyzeStructure, checkSeismicStoryDrift, checkMemberDeflection, fetch3DLoadTemplates, checkSteelInteraction } from './api.js';
 import { byId } from './dom.js';
 import { fitModelToCanvas } from './canvas3d/index.js';
 import { showProp } from './canvas3d/render.js';
@@ -16,6 +16,7 @@ export function initAnalysis() {
   const importJsonFile = byId('importJsonFile');
   if (importJsonFile) importJsonFile.addEventListener('change', importModelJson);
   init3DAnalysisControls();
+  initASCEComboTemplates();
   initCodeReview();
   window.StructAgentDebug = {
     getState: () => JSON.parse(JSON.stringify(S)),
@@ -156,6 +157,7 @@ export function buildModel(analysisType) {
       load_combinations: S.loadCombinations,
       active_load_combination: S.activeLoadCombination,
       rigid_diaphragms: S.rigidDiaphragms !== false,
+      analysis_order: byId('secondOrderToggle')?.checked ? 'p_delta' : 'first_order',
     };
   }
 
@@ -504,6 +506,7 @@ function initCodeReview() {
   });
   byId('codeRunDrift').addEventListener('click', runCodeDrift);
   byId('codeRunDeflection').addEventListener('click', runCodeDeflection);
+  byId('codeRunH1').addEventListener('click', runCodeH1);
 }
 
 function addMessage(target, message, className = 'code-result-message') {
@@ -549,6 +552,7 @@ async function runCodeDrift() {
       cd: Number(byId('codeCd').value),
       ie: Number(byId('codeIe').value),
       seismic_elastic_confirmed: byId('codeConfirmSeismic').checked,
+      direction: byId('codeDirection').value,
       compatible_partitions_confirmed: byId('codeConfirmPartitions').checked
     });
     if (data.status !== 'ok') throw new Error(data.message || 'Code check could not be completed.');
@@ -615,5 +619,67 @@ async function runCodeDeflection() {
     addMessage(target, error.message);
   } finally {
     btn.disabled = false;
+  }
+}
+
+function initASCEComboTemplates() {
+  const button = byId('asceComboBtn');
+  if (!button) return;
+  button.addEventListener('click', async () => {
+    const cases = [...new Set(['D', ...S.loads.map((l) => l.case || 'D'),
+      ...S.memberLoads.map((l) => l.case || 'D')])]
+      .filter((name) => ['D', 'L', 'S', 'W', 'EX', 'EY'].includes(name));
+    if (!confirm('Replace the current load combination definitions with selected simplified ASCE 7-22 LRFD templates? These do not cover all code requirements.')) return;
+    try {
+      const response = await fetch3DLoadTemplates(cases);
+      if (response.status !== 'ok') throw new Error(response.message || 'Template generation failed.');
+      const combos = response.results.combinations;
+      if (!combos.length) throw new Error('No applicable combination generated.');
+      S.loadCombinations = combos;
+      S.activeLoadCombination = combos[0].name;
+      const select = byId('loadComboSelect');
+      select.replaceChildren();
+      combos.forEach((combo) => {
+        const option = document.createElement('option');
+        option.value = combo.name;
+        option.textContent = combo.name;
+        select.appendChild(option);
+      });
+      select.value = combos[0].name;
+      alert(`${combos.length} selected templates generated. Read the engineering limitations: ${response.results.warnings.join(' ')}`);
+    } catch (error) {
+      alert('ASCE template error: ' + error.message);
+    }
+  });
+}
+
+async function runCodeH1() {
+  const target = byId('codeH1Results');
+  const button = byId('codeRunH1');
+  button.disabled = true;
+  addMessage(target, 'Evaluating AISC H1 interaction...');
+  try {
+    const data = await checkSteelInteraction({
+      force_type: byId('h1Type').value,
+      axial_demand_kn: Number(byId('h1P').value),
+      available_axial_kn: Number(byId('h1Pc').value),
+      mx_demand_kn_m: Number(byId('h1Mx').value),
+      mx_available_kn_m: Number(byId('h1Mcx').value),
+      my_demand_kn_m: Number(byId('h1My').value),
+      my_available_kn_m: Number(byId('h1Mcy').value)
+    });
+    if (data.status !== 'ok') throw new Error(data.message || 'Steel interaction check failed.');
+    const result = data.results;
+    codeSummary(target, result, result.reference,
+      `Axial ratio: ${result.axial_ratio}. Flexural demand ratios: ${result.flexural_ratio_sum}. Combined utilization: ${result.utilization}.`);
+    const limitations = document.createElement('p');
+    limitations.className = 'code-check-disclaimer';
+    limitations.textContent = result.limitations.join(' ');
+    target.appendChild(limitations);
+    if (S.results) S.results.code_checks = { ...(S.results.code_checks || {}), steel_h1: result };
+  } catch (error) {
+    addMessage(target, error.message);
+  } finally {
+    button.disabled = false;
   }
 }
