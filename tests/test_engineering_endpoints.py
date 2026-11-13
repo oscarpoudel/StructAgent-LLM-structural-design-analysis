@@ -74,3 +74,42 @@ def test_traceability_appendix_exposes_run_context():
     assert "1.2D+1.6L" in appendix
     assert "Directional interstory" in appendix
     assert "matched_xy" in appendix
+
+
+def test_named_project_and_metadata_roundtrip_server(tmp_path, monkeypatch):
+    from app import main as app_module
+
+    monkeypatch.setattr(app_module, "DB_PATH", tmp_path / "project-test.db")
+    app = create_app()
+    client = app.test_client()
+    record = {
+        "id": "proj_validated_01", "name": "Three-story Office Frame",
+        "metadata": {
+            "projectNumber": "STR-2026-03", "client": "Engineering Research Lab",
+            "engineer": "Design Team", "location": "Kathmandu",
+            "structureType": "building", "codeBasis": "ASCE 7-22",
+            "description": "Research-stage gravity and lateral analysis",
+        },
+        "nodes": [], "members": [], "levels": [
+            {"name": "Ground", "elevation": 0},
+            {"name": "Roof", "elevation": 3.5},
+        ], "updatedAt": 1000,
+    }
+    put_response = client.put("/api/projects/proj_validated_01", json=record)
+    assert put_response.status_code == 200
+    got = client.get("/api/projects/proj_validated_01")
+    assert got.status_code == 200
+    assert got.json["project"]["name"] == "Three-story Office Frame"
+    assert got.json["project"]["metadata"]["projectNumber"] == "STR-2026-03"
+    assert got.json["project"]["metadata"]["location"] == "Kathmandu"
+
+    record["name"] = "Revised Office and Laboratory Block"
+    record["metadata"]["description"] = "Additional structural assessment"
+    record["updatedAt"] = 2000
+    updated = client.put("/api/projects/proj_validated_01", json=record)
+    assert updated.status_code == 200
+    listed = client.get("/api/projects")
+    assert listed.status_code == 200
+    item = next(p for p in listed.json["projects"] if p["id"] == "proj_validated_01")
+    assert item["name"] == "Revised Office and Laboratory Block"
+    assert item["metadata"]["description"] == "Additional structural assessment"
