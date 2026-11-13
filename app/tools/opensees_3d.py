@@ -224,6 +224,14 @@ def _run_static_combo(ops, inputs: Structure3DInputs, combo: dict, *, second_ord
     ops.analysis("Static")
 
     status = ops.analyze(1)
+    if status != 0:
+        return {
+            "status": "error",
+            "solver": "openseespy_3d_frame",
+            "opensees_status": status,
+            "solver_warning": "OpenSees 3D static solver did not converge; displacements and member forces are not valid.",
+            "analysis_order": "p_delta" if second_order else "first_order",
+        }
     ops.reactions()
 
     nodal_displacements = {}
@@ -316,6 +324,13 @@ def analyze_3d_structure_opensees(inputs: Structure3DInputs) -> dict:
             combo["name"]: _run_static_combo(ops, inputs, combo, second_order=nonlinear)
             for combo in combinations
         }
+        failed = [name for name, result in combo_results.items() if result.get("status") == "error"]
+        if failed:
+            return {
+                "status": "error", "solver": "openseespy_3d_frame",
+                "solver_warning": f"OpenSees did not converge for: {', '.join(failed)}",
+                "failed_combinations": failed,
+            }
         active_name = inputs.active_load_combination if inputs.active_load_combination in combo_results else combinations[0]["name"]
         active_result = dict(combo_results[active_name])
         active_result["combination_results"] = combo_results
@@ -323,6 +338,11 @@ def analyze_3d_structure_opensees(inputs: Structure3DInputs) -> dict:
         if nonlinear:
             chosen = next(c for c in combinations if c["name"] == active_name)
             first_order = _run_static_combo(ops, inputs, chosen, second_order=False)
+            if first_order.get("status") == "error":
+                return {
+                    "status": "error", "solver": "openseespy_3d_frame",
+                    "solver_warning": "First-order comparison did not converge.",
+                }
             u1 = first_order["max_translation_mm"]
             u2 = active_result["max_translation_mm"]
             active_result["second_order_verification"] = {

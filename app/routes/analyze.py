@@ -191,6 +191,8 @@ def analyze_structure():
         })
     except ValidationError as error:
         return jsonify({"status": "error", "errors": error.errors()}), 422
+    except ValueError as error:
+        return jsonify({"status": "error", "message": str(error)}), 422
     except Exception as error:
         log.error("analyze_structure_error", extra={"error": str(error)})
         return jsonify({"status": "error", "message": str(error)}), 500

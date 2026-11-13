@@ -231,6 +231,8 @@ def _analyze_structure_model(analysis_type: str, model: dict) -> tuple[dict, str
         from app.tools.opensees_3d import analyze_3d_structure_opensees as run_3d
         inputs = Structure3DInputs.model_validate(model)
         results = run_3d(inputs)
+        if results.get("status") == "error":
+            raise ValueError(results.get("solver_warning", "3D structural solver failed."))
         report_md = format_engineering_report(
             "Canvas-drawn 3D frame structure",
             ["Preliminary elastic 3D analysis.", "Rigid beam-column connections."],
