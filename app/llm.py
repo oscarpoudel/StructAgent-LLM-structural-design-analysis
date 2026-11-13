@@ -154,7 +154,7 @@ class PydanticAIClient:
     native Ollama client.
     """
 
-    def __init__(self, base_url: str, model: str, timeout_s: float = 12.0) -> None:
+    def __init__(self, base_url: str, model: str, timeout_s: float = 12.0, bearer_token: str = "") -> None:
         self.base_url = self._openai_compatible_url(base_url)
         self.model = model
         self.timeout_s = timeout_s
