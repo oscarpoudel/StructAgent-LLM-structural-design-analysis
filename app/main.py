@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -24,7 +25,8 @@ configure_logging()
 log = get_logger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR.parent / "analysis_history.db"
+DB_PATH = Path(os.environ.get("STRUCTAGENT_DB_PATH", str(BASE_DIR.parent / "analysis_history.db")))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------

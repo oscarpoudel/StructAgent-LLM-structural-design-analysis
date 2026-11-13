@@ -1,0 +1,3 @@
+# Install with visudo -cf and mode 0440.
+# The controller account cannot supply other commands or paths.
+structagentctl ALL=(root) NOPASSWD: /usr/local/sbin/structagent-compute start, /usr/local/sbin/structagent-compute stop

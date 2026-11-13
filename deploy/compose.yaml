@@ -1,0 +1,52 @@
+name: structagent
+services:
+  gateway:
+    image: caddy:2.10
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./gateway/site:/srv:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /config
+      - /data
+    security_opt:
+      - no-new-privileges:true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    network_mode: host
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    security_opt:
+      - no-new-privileges:true
+
+  structagent:
+    profiles: ["compute"]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: "no"
+    init: true
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      APP_ENV: production
+      APP_SECRET_KEY: ${APP_SECRET_KEY}
+      AGENT_LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      AGENT_LLM_TIMEOUT_S: "90"
+      STRUCTAGENT_DB_PATH: /app/data/analysis_history.db
+    volumes:
+      - structagent_data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 45s
+
+volumes:
+  structagent_data:

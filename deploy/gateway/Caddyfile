@@ -1,0 +1,20 @@
+:8080 {
+    bind 127.0.0.1
+    @landing host structagent.example.com
+    @workspace host app.structagent.example.com
+
+    handle @landing {
+        handle /api/session/* {
+            reverse_proxy 127.0.0.1:8765
+        }
+        root * /srv
+        file_server
+    }
+    handle @workspace {
+        handle /api/session/* {
+            reverse_proxy 127.0.0.1:8765
+        }
+        reverse_proxy 127.0.0.1:5000
+    }
+    respond "Unknown host" 404
+}
