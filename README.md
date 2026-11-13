@@ -15,6 +15,16 @@ For portable Ubuntu installation, configuration, existing Cloudflare Tunnel rout
 ---
 
 
+## Project creation and workspace layout
+
+Click **New Project** on the app dashboard. The wizard now requests a required **project name** and optional project number, client, engineer/preparer, project location, structure type, reference standard and design notes. Grid spacings and story elevations are configured beneath the project information. The project is **not saved** until the required name, X/Y grid spacings and valid story elevations are confirmed with **Create Project & Start Drawing**; Cancel discards the draft.
+
+Saved project details appear in the project cards. For an existing project, open the project menu in the top bar and select **Edit Project Information**. These fields persist with the model and are included in exported Markdown/PDF calculation reports. Older projects remain compatible and acquire optional metadata when edited.
+
+Project information is **descriptive metadata**; selecting a country or code basis does not automatically convert the load combinations or design methods. Confirm the actual governing edition at each engineering check. The setup page is scrollable between the fixed top navigation and status bar, and its action footer remains visible without hiding story-level inputs. On a smaller screen, the form switches to one column.
+
+Project metadata and geometry validation are covered by `tests/test_project_metadata.mjs` and run with `node --test` in CI. The public demo still shares project storage across visitors: do not enter private client or site information unless per-user authorization and isolation have been implemented.
+
 ## Engineering workflow upgrade: code checks, second-order comparison and Ollama design
 
 The **Analyze** ribbon supports representative ASCE 7-22 strength-combination templates, a selectable **P-Delta (3D)** geometric-transformation option, and the **Code Review** workspace. It exposes deterministic directional X/Y story-drift screening against selected ASCE/SEI 7-22 Table 12.12-1 limits, an independently specified AISC 360-22 H1 axial-bending interaction check, and a project-selected serviceability L/N comparison.

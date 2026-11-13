@@ -524,7 +524,28 @@ function build3DReport(analysis) {
 function buildReportExport(analysis) {
   const stale = !analysis.report_markdown || /Beam Analysis|Span: None/.test(analysis.report_markdown);
   const report = analysis.analysis_type === '3d_frame' && stale ? build3DReport(analysis) : analysis.report_markdown;
-  return `${(report || '').trim()}\n\n## Detailed Analysis Data\n\n\`\`\`json\n${JSON.stringify(analysis.results || {}, null, 2)}\n\`\`\`\n`;
+  const project = S.project;
+  const meta = project?.metadata || {};
+  const fields = [
+    ['Project Name', project?.name],
+    ['Project Number', meta.projectNumber],
+    ['Client', meta.client],
+    ['Engineer', meta.engineer],
+    ['Location', meta.location],
+    ['Structure Type', meta.structureType],
+    ['Reference Design Standard', meta.codeBasis],
+    ['Description', meta.description],
+  ].filter(([, value]) => String(value ?? '').trim().length > 0);
+  const projectDetails = fields.length ? [
+    '# StructAgent Project Calculation Record',
+    '',
+    '## Project Information',
+    ...fields.map(([label, value]) => `- **${label}:** ${String(value).replace(/[\\r\\n<>]/g, ' ')}`),
+    '',
+    '*The reference standard field is metadata only. Review the code edition used by each engineering tool.*',
+    '',
+  ].join('\n') : '';
+  return `${projectDetails}${(report || '').trim()}\n\n## Detailed Analysis Data\n\n\`\`\`json\n${JSON.stringify(analysis.results || {}, null, 2)}\n\`\`\`\n`;
 }
 
 export function initExports() {
