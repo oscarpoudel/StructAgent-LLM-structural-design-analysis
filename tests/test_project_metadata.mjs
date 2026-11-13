@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
@@ -50,4 +51,19 @@ test('story levels must have names and strictly increasing finite elevations', (
   assert.equal(validateStoryLevels([{name: 'Ground', elevation: 0}, {name: 'Ground', elevation: 3}]).valid, false);
   assert.equal(validateStoryLevels([{name: '', elevation: 0}, {name: 'Roof', elevation: 3}]).valid, false);
   assert.equal(validateStoryLevels([{name: 'Ground', elevation: 0}, {name: 'Roof', elevation: NaN}]).valid, false);
+});
+
+test('project setup actions remain visible and analysis status is scoped to drawing workspace', () => {
+  const css = readFileSync(new URL('../app/static/styles.css', import.meta.url), 'utf8');
+  const js = readFileSync(new URL('../app/static/js/main.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../app/static/index.html', import.meta.url), 'utf8');
+
+  assert.match(css, /body:not\(\.workspace-active\)\s+#statusbar\s*\{\s*display:\s*none/);
+  assert.match(css, /\.setup-actions\s*\{\s*bottom:\s*0;/);
+  assert.match(css, /\.setup-page\s*\{\s*inset:\s*var\(--topbar-h\)\s+0\s+0\s+0;/);
+  assert.match(js, /function showLandingPage\(\)\s*\{\s*document\.body\.classList\.remove\('workspace-active'\)/);
+  assert.match(js, /function showSetupPage\(\)\s*\{\s*document\.body\.classList\.remove\('workspace-active'\)/);
+  assert.match(js, /function showDrawPage\(\)\s*\{\s*document\.body\.classList\.add\('workspace-active'\)/);
+  assert.match(html, /id="setupBackBtn"[^>]*>Cancel<\/button>/);
+  assert.match(html, /id="setupDoneBtn"[^>]*>Create Project &amp; Start Drawing<\/button>/);
 });
