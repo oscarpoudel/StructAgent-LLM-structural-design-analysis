@@ -30,6 +30,7 @@ services:
       AGENT_LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       OLLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_BEARER_TOKEN: ${OLLAMA_BEARER_TOKEN:-}
       AGENT_LLM_TIMEOUT_S: "90"
       STRUCTAGENT_DB_PATH: /app/data/analysis_history.db
     volumes:

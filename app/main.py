@@ -163,11 +163,11 @@ def _get_llm_client() -> OllamaClient | DisabledLLMClient | PydanticAIClient:
         return DisabledLLMClient()
     elif provider == "pydanticai":
         try:
-            return PydanticAIClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+            return PydanticAIClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s, settings.ollama_bearer_token)
         except Exception:
-            return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+            return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s, settings.ollama_bearer_token)
     else:
-        return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s)
+        return OllamaClient(settings.ollama_base_url, settings.ollama_model, settings.agent_llm_timeout_s, settings.ollama_bearer_token)
 
 
 def _get_agent_system() -> StructuralAgentSystem:

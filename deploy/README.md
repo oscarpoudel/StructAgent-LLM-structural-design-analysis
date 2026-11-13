@@ -22,7 +22,7 @@ The gateway distinguishes landing and workspace hostnames. Example routes within
 ## Install on Linux
 
 1. Clone branch `feature/on-demand-cloudflare-existing-ollama` at `/opt/structagent`.
-2. Copy `deploy/.env.example` to `deploy/.env`. Set `APP_SECRET_KEY`, private `OLLAMA_BASE_URL` and an already installed `OLLAMA_MODEL`. Protect with `chmod 600`. No Cloudflare token is required.
+2. Copy `deploy/.env.example` to `deploy/.env`. Set `APP_SECRET_KEY`, private `OLLAMA_BASE_URL` and an already installed `OLLAMA_MODEL`. Optionally set `OLLAMA_BEARER_TOKEN` (just the token, without the `Bearer ` prefix). Leave it empty when the Ollama endpoint does not require authentication. Protect with `chmod 600`. No Cloudflare token is required.
 3. Replace `structagent.example.com` and `app.structagent.example.com` in `deploy/gateway/Caddyfile` and `deploy/gateway/site/index.html`.
 4. Update your **existing** Cloudflare Tunnel's published application routes so both hostnames use `http://127.0.0.1:8080`. Do not create a new tunnel. Ensure Access protects both hostnames before making the page publicly available. Capture the Access application's AUD and Team domain.
 5. Copy `deploy/controller.env.example` to `/etc/structagent-controller.env`; populate the Access Team domain, AUD, allowed email identities and exact HTTPS origins. Protect with `sudo chmod 600 /etc/structagent-controller.env`.
@@ -56,3 +56,21 @@ The landing page and host Cloudflare Tunnel remain available while compute is st
 - The browser heartbeat does not detect active structural analysis tasks; a manual stop or hard session timeout can interrupt an in-flight calculation.
 - The remote Ollama server is not stopped. To reduce GPU load, configure model unloading or idle behavior on the existing Ollama host.
 - Running workspace access should remain restricted. Access-approved users share the app's SQLite project storage, so consider per-user project isolation before inviting multiple users.
+
+## Optional Ollama bearer authentication
+
+Set in `deploy/.env`:
+
+```env
+OLLAMA_BASE_URL=https://your-private-ollama-host.example
+OLLAMA_MODEL=your-model
+OLLAMA_BEARER_TOKEN=your-secret-token
+```
+
+The native Ollama `/api/generate` and `/api/chat` requests and the OpenAI-compatible `/v1/chat/completions` requests will include `Authorization: Bearer <token>` when `OLLAMA_BEARER_TOKEN` has a nonempty value. When absent or blank, **no Authorization header is sent**. Do not include the `Bearer ` prefix in the environment variable. Restart/recreate the compute container after changing `deploy/.env`:
+
+```bash
+sudo docker compose --profile compute up -d --no-deps --force-recreate structagent
+```
+
+Restrict `deploy/.env` to the server owner (`chmod 600`) and avoid publishing it in Git or pasting it into logs. Prefer HTTPS or a trusted private network to prevent token interception. The token is passed as a container environment variable, so host Docker administrators can inspect it.
