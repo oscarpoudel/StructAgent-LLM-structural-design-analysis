@@ -1,6 +1,7 @@
 import { byId, $$ } from './dom.js';
 import { createProject, deleteProject, getAllProjects, getProject, saveProject } from './projects.js';
 import { S, resetModel } from './state.js';
+import { normalizeProjectDetails, validateProjectDetails, parseGridSpacings, validateStoryLevels } from './projectMetadata.mjs';
 import { canvas3d, draw, initCanvas, resizeCanvas } from './canvas3d/index.js';
 import { triggerRedraw } from './canvas3d/scene.js';
 import { initAnalysis } from './analysis.js';
@@ -31,10 +32,11 @@ initSetupPage();
 initCommandPalette();
 
 function initLandingPage() {
-  byId('newProjectBtn').addEventListener('click', async () => {
-    currentProject = createProject({ name: 'New Project' });
-    await saveProject(currentProject);
+  byId('newProjectBtn').addEventListener('click', () => {
+    currentProject = createProject({ name: '' });
+    resetSetupForm();
     showSetupPage();
+    byId('setupProjectName').focus();
   });
 
   loadProjectGrid();
@@ -50,36 +52,68 @@ async function loadProjectGrid() {
     }
     grid.innerHTML = '';
     projects.forEach(proj => {
-      const card = document.createElement('div');
+      const card = document.createElement('article');
       card.className = 'project-card';
-      const date = new Date(proj.updatedAt).toLocaleDateString();
-      const nodeCount = (proj.nodes || []).length;
-      const memberCount = (proj.members || []).length;
-      const levelCount = (proj.levels || []).length;
-      card.innerHTML = `
-        <h3>${proj.name}</h3>
-        <div class="project-card-stats">
-          <span>${nodeCount} nodes</span>
-          <span>${memberCount} members</span>
-          <span>${levelCount} levels</span>
-        </div>
-        <div class="project-card-date">${date}</div>
-        <div class="project-card-actions">
-          <button class="btn-xs" data-action="open">Open</button>
-          <button class="btn-xs danger" data-action="delete">Delete</button>
-        </div>
-      `;
-      card.querySelector('[data-action="open"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        openProject(proj.id);
-      });
-      card.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (confirm(`Delete "${proj.name}"?`)) {
+      const heading = document.createElement('h3');
+      heading.textContent = proj.name || 'Untitled Project';
+      card.appendChild(heading);
+
+      const metadata = normalizeProjectDetails(proj).metadata;
+      if (metadata.projectNumber) {
+        const reference = document.createElement('p');
+        reference.className = 'project-card-ref';
+        reference.textContent = metadata.projectNumber;
+        card.appendChild(reference);
+      }
+      const details = [metadata.client, metadata.location, metadata.codeBasis].filter(Boolean);
+      if (details.length) {
+        const info = document.createElement('div');
+        info.className = 'project-card-meta';
+        details.forEach(detail => {
+          const span = document.createElement('span');
+          span.textContent = detail;
+          info.appendChild(span);
+        });
+        card.appendChild(info);
+      }
+
+      const stats = document.createElement('div');
+      stats.className = 'project-card-stats';
+      for (const label of [
+        `${(proj.nodes || []).length} nodes`,
+        `${(proj.members || []).length} members`,
+        `${(proj.levels || []).length} levels`
+      ]) {
+        const span = document.createElement('span');
+        span.textContent = label;
+        stats.appendChild(span);
+      }
+      card.appendChild(stats);
+
+      const date = document.createElement('div');
+      date.className = 'project-card-date';
+      date.textContent = 'Updated ' + new Date(proj.updatedAt || proj.createdAt || Date.now()).toLocaleDateString();
+      card.appendChild(date);
+
+      const actions = document.createElement('div');
+      actions.className = 'project-card-actions';
+      const open = document.createElement('button');
+      open.className = 'btn-xs';
+      open.type = 'button';
+      open.textContent = 'Open Project';
+      open.addEventListener('click', () => openProject(proj.id));
+      const remove = document.createElement('button');
+      remove.className = 'btn-xs danger';
+      remove.type = 'button';
+      remove.textContent = 'Delete';
+      remove.addEventListener('click', async () => {
+        if (confirm(`Delete "${proj.name}"? This cannot be undone.`)) {
           await deleteProject(proj.id);
           loadProjectGrid();
         }
       });
+      actions.append(open, remove);
+      card.appendChild(actions);
       grid.appendChild(card);
     });
   } catch (err) {
@@ -143,6 +177,7 @@ function showSetupPage() {
   byId('landingPage').classList.remove('active');
   byId('setupPage').classList.remove('hidden');
   byId('setupPage').classList.add('active');
+  byId('setupPage').scrollTop = 0;
   byId('tab-draw').classList.add('hidden');
   byId('tab-draw').classList.remove('active');
   byId('ribbon').style.display = 'none';
@@ -213,7 +248,11 @@ function initSetupPage() {
   byId('applyGridYBtn').addEventListener('click', () => applyGridAxis('y'));
 
   byId('addLevelBtn').addEventListener('click', addLevelRow);
-  byId('setupBackBtn').addEventListener('click', showLandingPage);
+  byId('setupBackBtn').addEventListener('click', () => {
+    currentProject = null;
+    showLandingPage();
+    loadProjectGrid();
+  });
   byId('setupDoneBtn').addEventListener('click', finishSetup);
 
   byId('levelsBody').addEventListener('click', (e) => {
@@ -268,13 +307,38 @@ function initSetupPage() {
     setTimeout(updateStatus, 2000);
   });
 
-  byId('renameProjectBtn').addEventListener('click', () => {
+  byId('editProjectDetailsBtn').addEventListener('click', () => {
+    if (currentProject) openProjectDetailsEditor();
+  });
+
+  byId('projectEditClose').addEventListener('click', closeProjectDetailsEditor);
+  byId('projectEditCancel').addEventListener('click', closeProjectDetailsEditor);
+  byId('projectDetailsModal').addEventListener('click', event => {
+    if (event.target === byId('projectDetailsModal')) closeProjectDetailsEditor();
+  });
+  byId('projectEditForm').addEventListener('submit', async event => {
+    event.preventDefault();
     if (!currentProject) return;
-    const name = prompt('Project name:', currentProject.name);
-    if (name) {
-      currentProject.name = name;
-      byId('projectName').textContent = name;
-      persistCurrentProject({ force: true });
+    const validation = validateProjectDetails(readProjectDetails('edit'));
+    if (!validation.valid) {
+      byId('projectEditError').textContent = validation.message;
+      byId('edit' + validation.field).focus();
+      return;
+    }
+    currentProject.name = validation.details.name;
+    currentProject.metadata = validation.details.metadata;
+    try {
+      await persistCurrentProject({ force: true });
+      byId('projectName').textContent = currentProject.name;
+      closeProjectDetailsEditor();
+    } catch (error) {
+      byId('projectEditError').textContent = 'Could not save project information: ' + error.message;
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !byId('projectDetailsModal').classList.contains('hidden')) {
+      closeProjectDetailsEditor();
     }
   });
 
@@ -335,27 +399,28 @@ function initProjectAutosave() {
 function applyGridAxis(axis) {
   const inputId = axis === 'x' ? 'gridXSpacings' : 'gridYSpacings';
   const previewId = axis === 'x' ? 'gridXPreview' : 'gridYPreview';
-  const raw = byId(inputId).value.trim();
-  const spacings = raw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
-
-  if (spacings.length === 0) return;
-
-  const positions = [0];
-  spacings.forEach(s => positions.push(positions[positions.length - 1] + s));
-
-  if (axis === 'x') {
-    canvas3d.gridLinesX = positions;
-  } else {
-    canvas3d.gridLinesY = positions;
-  }
-
+  const input = byId(inputId);
+  const parsed = parseGridSpacings(input.value);
+  input.setAttribute('aria-invalid', String(!parsed.valid));
   const preview = byId(previewId);
+  if (!parsed.valid) {
+    preview.textContent = parsed.message;
+    return false;
+  }
+  if (axis === 'x') canvas3d.gridLinesX = parsed.positions;
+  else canvas3d.gridLinesY = parsed.positions;
+
   const labels = axis === 'x'
-    ? positions.map((_, i) => String(i + 1))
-    : positions.map((_, i) => `${i + 1}'`);
-  preview.innerHTML = labels.map((l, i) =>
-    `<span class="grid-label">${l}: ${positions[i].toFixed(1)}m</span>`
-  ).join('');
+    ? parsed.positions.map((_, i) => String(i + 1))
+    : parsed.positions.map((_, i) => `${i + 1}'`);
+  preview.replaceChildren();
+  labels.forEach((label, index) => {
+    const span = document.createElement('span');
+    span.className = 'grid-label';
+    span.textContent = `${label}: ${parsed.positions[index].toFixed(1)} m`;
+    preview.appendChild(span);
+  });
+  return true;
 }
 
 function addLevelRow() {
@@ -439,33 +504,106 @@ function updateStoryHeights() {
   });
 }
 
+function readProjectDetails(prefix) {
+  return {
+    name: byId(prefix + 'ProjectName').value,
+    metadata: {
+      projectNumber: byId(prefix + 'ProjectNumber').value,
+      client: byId(prefix + 'ProjectClient').value,
+      engineer: byId(prefix + 'ProjectEngineer').value,
+      location: byId(prefix + 'ProjectLocation').value,
+      structureType: byId(prefix + 'ProjectStructureType').value,
+      codeBasis: byId(prefix + 'ProjectCodeBasis').value,
+      description: byId(prefix + 'ProjectDescription').value,
+    },
+  };
+}
+
+function fillProjectDetails(prefix, project) {
+  const data = normalizeProjectDetails(project);
+  byId(prefix + 'ProjectName').value = data.name;
+  for (const [field, value] of Object.entries(data.metadata)) {
+    const domName = field.charAt(0).toUpperCase() + field.slice(1);
+    const element = byId(prefix + 'Project' + domName);
+    if (element) element.value = value;
+  }
+}
+
+function resetSetupForm() {
+  fillProjectDetails('setup', {name: '', metadata: {}});
+  byId('setupError').textContent = '';
+  byId('gridXSpacings').value = '6, 6, 6';
+  byId('gridYSpacings').value = '7, 7';
+  applyGridAxis('x');
+  applyGridAxis('y');
+  populateLevels(2);
+}
+
+function openProjectDetailsEditor() {
+  byId('projectEditError').textContent = '';
+  fillProjectDetails('edit', currentProject);
+  byId('projectDetailsModal').classList.remove('hidden');
+  byId('editProjectName').focus();
+}
+
+function closeProjectDetailsEditor() {
+  byId('projectDetailsModal').classList.add('hidden');
+}
+
+function showSetupError(message, element) {
+  byId('setupError').textContent = message;
+  if (element) element.focus();
+}
+
 async function finishSetup() {
-  const rows = byId('levelsBody').querySelectorAll('tr');
-  const levels = [];
-  rows.forEach(row => {
-    const nameInput = row.querySelectorAll('input[type="text"]')[0];
-    const elevInput = row.querySelectorAll('input[type="number"]')[0];
-    levels.push({
-      name: nameInput.value,
-      elevation: parseFloat(elevInput.value) || 0
-    });
+  if (!currentProject) return;
+  byId('setupError').textContent = '';
+  const details = validateProjectDetails(readProjectDetails('setup'));
+  if (!details.valid) {
+    showSetupError(details.message, byId('setup' + details.field));
+    return;
+  }
+
+  const x = parseGridSpacings(byId('gridXSpacings').value);
+  const y = parseGridSpacings(byId('gridYSpacings').value);
+  if (!x.valid || !y.valid) {
+    showSetupError('Invalid grid spacing: ' + (!x.valid ? x.message : y.message),
+      byId(!x.valid ? 'gridXSpacings' : 'gridYSpacings'));
+    return;
+  }
+
+  const levels = [...byId('levelsBody').querySelectorAll('tr')].map(row => {
+    const name = row.querySelector('input[type="text"]').value.trim();
+    const raw = row.querySelector('input[type="number"]').value.trim();
+    return {name, elevation: raw === '' ? NaN : Number(raw)};
   });
-  levels.sort((a, b) => a.elevation - b.elevation);
-
-  if (canvas3d.gridLinesX.length < 2) {
-    canvas3d.gridLinesX = [0, 6, 12, 18];
-  }
-  if (canvas3d.gridLinesY.length < 2) {
-    canvas3d.gridLinesY = [0, 7, 14];
+  const checked = validateStoryLevels(levels);
+  if (!checked.valid) {
+    showSetupError(checked.message, byId('levelsTable'));
+    byId('levelsTable').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
   }
 
+  const button = byId('setupDoneBtn');
+  button.disabled = true;
+  button.textContent = 'Creating Project...';
+  currentProject.name = details.details.name;
+  currentProject.metadata = details.details.metadata;
   currentProject.levels = levels;
-  currentProject.gridLinesX = canvas3d.gridLinesX;
-  currentProject.gridLinesY = canvas3d.gridLinesY;
+  currentProject.gridLinesX = x.positions;
+  currentProject.gridLinesY = y.positions;
   canvas3d.levels = levels;
-
-  await saveProject(currentProject);
-  lastSavedSnapshot = JSON.stringify(currentProject);
-  loadProjectIntoState(currentProject);
-  showDrawPage();
+  canvas3d.gridLinesX = x.positions;
+  canvas3d.gridLinesY = y.positions;
+  try {
+    await saveProject(currentProject);
+    lastSavedSnapshot = JSON.stringify(currentProject);
+    loadProjectIntoState(currentProject);
+    showDrawPage();
+  } catch (error) {
+    showSetupError('Could not create the project: ' + error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Create Project & Start Drawing';
+  }
 }

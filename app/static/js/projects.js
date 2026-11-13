@@ -202,6 +202,7 @@ export function createProject(data) {
   return {
     id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     name: data.name || 'Untitled Project',
+    metadata: data.metadata || {},
     createdAt: Date.now(),
     updatedAt: Date.now(),
     levels: data.levels || [],
