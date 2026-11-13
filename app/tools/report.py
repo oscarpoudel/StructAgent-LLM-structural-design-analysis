@@ -429,3 +429,59 @@ def _format_column_report(
         "assumptions, local buckling, connection details, and overall stability.",
     ])
     return "\n".join(lines)
+
+
+def format_traceability_appendix(results: dict[str, object]) -> str:
+    """Append an auditable calculation record to a generated engineering report."""
+    metadata = results.get("traceability", {})
+    if not isinstance(metadata, dict):
+        metadata = {}
+    lines = [
+        "",
+        "",
+        "## Calculation traceability",
+        f"- Analysis timestamp (UTC): {metadata.get('timestamp_utc', 'not supplied')}",
+        f"- Model input SHA-256: {metadata.get('model_sha256', 'not supplied')}",
+        f"- Input source: {metadata.get('input_source', 'not supplied')}",
+        f"- Solver: {metadata.get('solver', results.get('solver', 'not supplied'))}",
+        f"- Selected load combination: {metadata.get('load_combination', results.get('load_combination', 'not supplied'))}",
+        f"- Analysis order: {metadata.get('analysis_order', 'first_order')}",
+        f"- OpenSees solver status: {results.get('opensees_status', 'not supplied')}",
+        "",
+        "## Analysis scope",
+        "- Results are preliminary. A passing acceptance check is not an engineering design approval.",
+        "- Verify code edition, geographic hazard parameters, correct load cases, signs, material inputs, restraints and structural-system classification.",
+        "- Independent verification is required for equilibrium, serviceability, strength, stability, connections, seismic detailing and accidental torsion.",
+    ]
+    order = results.get("second_order_verification")
+    if isinstance(order, dict):
+        lines.extend([
+            "",
+            "## Geometric P-delta comparison (selected load combination)",
+            f"- First-order maximum translation (mm): {order.get('first_order_max_translation_mm')}",
+            f"- Geometric P-delta maximum translation (mm): {order.get('pdelta_max_translation_mm')}",
+            f"- Second/first translation ratio: {order.get('amplification_ratio')}",
+        ])
+        lines.extend(f"- Limitation: {item}" for item in order.get("limitations", []))
+    story = results.get("story_response", {})
+    if isinstance(story, dict) and story.get("story_drifts"):
+        lines.extend([
+            "",
+            "## Directional interstory elastic drifts",
+            "| Story elevation (m) | X (mm) | Y (mm) | Resultant (mm) | Node pairing |",
+            "|---|---:|---:|---:|---|",
+        ])
+        for item in story["story_drifts"]:
+            lines.append(
+                f"| {item.get('from_m')} to {item.get('to_m')} | "
+                f"{item.get('drift_x_mm', 'n/a')} | {item.get('drift_y_mm', 'n/a')} | "
+                f"{item.get('drift_mm', 'n/a')} | {item.get('pairing_method', 'unknown')} |"
+            )
+    lines.extend([
+        "",
+        "### Evidence interpretation",
+        "Input hashes help identify the submitted model but do not authenticate its origin "
+        "or establish regulatory compliance. Values require independent engineering review.",
+        "",
+    ])
+    return "\n".join(lines)

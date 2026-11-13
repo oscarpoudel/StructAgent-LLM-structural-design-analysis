@@ -1,10 +1,12 @@
 """Flask application factory."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from flask import Flask
@@ -19,7 +21,7 @@ from app.models import (
     Structure3DInputs,
     TrussInputs,
 )
-from app.tools.report import format_engineering_report
+from app.tools.report import format_engineering_report, format_traceability_appendix
 
 configure_logging()
 log = get_logger(__name__)
@@ -243,6 +245,19 @@ def _analyze_structure_model(analysis_type: str, model: dict) -> tuple[dict, str
             ["Preliminary elastic analysis.", "Rigid beam-column connections."],
             [], results, analysis_type="frame",
         )
+    results["traceability"] = {
+        "timestamp_utc": datetime.now(UTC).isoformat(),
+        "model_sha256": hashlib.sha256(
+            json.dumps(model, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest(),
+        "input_source": "canvas_model",
+        "analysis_type": analysis_type,
+        "solver": results.get("solver"),
+        "analysis_order": results.get("analysis_order", "first_order"),
+        "load_combination": results.get("load_combination", "unspecified"),
+        "qualification": "Preliminary computation only. Not a code compliance certificate.",
+    }
+    report_md += format_traceability_appendix(results)
     _save_history(analysis_type, f"Canvas {analysis_type}", results, report_md)
     return results, report_md
 
